@@ -47,11 +47,26 @@ Verified against the docs mirror and the reference implementations on
    sequence exists only on the SDK route, where nothing does it for you.
 3. **The wire action names are `deposit`, `withdraw`, and `transfer`.** Shield
    and unshield are user-facing labels, not protocol verbs.
-4. **The Privacy SDK is not on npmjs.** `@starkware-libs/starknet-privacy-sdk`
-   lives on the GitHub Packages registry, which needs a token even for public
-   packages, and requires Node 24 or newer. The alternative is a git-SHA
-   install. There is no published version pin to copy — record whichever SHA we
-   settle on right here when we do. Treat the monorepo's own quickstart at
+4. **The Privacy SDK must come from GitHub Packages.** Current version is
+   `0.14.3-rc.5` (not the rc.4 quoted in most write-ups), living in the `sdk/`
+   directory of the public `starkware-libs/starknet-privacy` monorepo. Install
+   needs a token carrying `read:packages`:
+
+   ```sh
+   gh auth refresh -h github.com -s read:packages
+   npm config set @starkware-libs:registry https://npm.pkg.github.com
+   npm config set '//npm.pkg.github.com/:_authToken' "$(gh auth token)"
+   ```
+
+   Both token-free routes were tested on 2026-08-16 and **neither works**:
+   `pnpm add "github:starkware-libs/starknet-privacy#path:/sdk"` resolves but
+   installs only `README.md` and `package.json`, because the package declares
+   `files: ["dist"]` and `dist/` is built at publish time with no `prepare`
+   script — importing it throws `ERR_MODULE_NOT_FOUND`. Building the SDK from a
+   standalone clone of `sdk/` fails too (`Cannot find module 'hpke'`, a
+   workspace sibling). Do not burn time re-deriving this.
+
+   Treat the monorepo's own quickstart at
    `github.com/starkware-libs/starknet-privacy/blob/main/sdk/README.md` as
    authoritative over any second-hand note, including this one.
 5. **`starknet@10.4.x` ships on the npm `next` tag.** The `latest` tag is still
