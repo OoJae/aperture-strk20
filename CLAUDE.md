@@ -113,8 +113,15 @@ Verified against the docs mirror and the reference implementations on
 | STRK20 pool, mainnet | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a` |
 | STRK20 pool, Sepolia | `0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91` |
 | Chain | `SN_MAIN` / `SN_SEPOLIA` |
-| RPC | From `.env` only, never inline |
+| RPC | From `.env` only, never inline. No-key defaults in `.env.example` |
+| Sepolia faucet | `https://faucet.starknet.io` — 100 STRK per address per 24h |
 | Docs mirror | `https://strk20-by-example.org/llms-full.txt` |
+
+Starknet fees are **STRK-denominated**, not ETH — guides that say to fund a
+testnet account with ETH predate v0.14 and are wrong. Accounts are contracts and
+must be deployed before they can transact: `sncast account create` prints a
+counterfactual address, you fund *that* address, then `sncast account deploy`.
+Funding between those two steps is mandatory, not optional.
 
 ## Layout
 
