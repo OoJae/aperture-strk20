@@ -1,0 +1,22 @@
+{
+  "name": "@aperture/strk20-governance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Sealed-ballot governance primitives for the STRK20 shielded pool.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "starknet": "^10.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

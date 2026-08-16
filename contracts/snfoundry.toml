@@ -1,0 +1,2 @@
+# Deployment profiles for `sncast` are added in Phase 2, when contracts exist to
+# declare. Account credentials come from the environment, never from this file.

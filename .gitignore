@@ -1,0 +1,30 @@
+# --- Secrets (never commit) ---
+.env
+.env.*
+!.env.example
+
+# --- Local-only strategy & research (deliberately not published) ---
+APERTURE_BUILD_GUIDE.md
+STRK20_WINNING_STRATEGY_REPORT.md
+CLAUDE_CODE_MASTER_PROMPT*.md
+docs/COMPETITIVE_NOTES.md
+
+# --- Dependencies / build output ---
+node_modules/
+.next/
+out/
+dist/
+build/
+target/
+.snfoundry_cache/
+*.tsbuildinfo
+
+# --- Tooling / OS ---
+.DS_Store
+.claude/
+.vercel
+*.log
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+coverage/

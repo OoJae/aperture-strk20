@@ -1,0 +1,29 @@
+{
+  "name": "@aperture/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Aperture demo dapp — shield, cast a sealed ballot, watch the tally.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aperture/strk20-governance": "workspace:*",
+    "next": "^16.0.8",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
+    "starknet": "^10.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^5.9.3"
+  }
+}

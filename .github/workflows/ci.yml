@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  contracts:
+    name: Cairo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to the versions the contracts were developed against.
+      # Keep in sync with contracts/Scarb.toml.
+      - uses: software-mansion/setup-scarb@v1
+        with:
+          scarb-version: "2.20.0"
+
+      - uses: foundry-rs/setup-snfoundry@v6
+        with:
+          starknet-foundry-version: "0.63.0"
+
+      - name: Build
+        working-directory: contracts
+        run: scarb build
+
+      - name: Test
+        working-directory: contracts
+        run: snforge test
+
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck

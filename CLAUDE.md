@@ -1,0 +1,115 @@
+# Working rules for Aperture
+
+Read this first in any new session. It is the condensed operating manual:
+ground rules, the API facts that differ from what you might assume, and where
+things live.
+
+## Ground rules
+
+1. **Secrets.** Every key lives in `.env`, which is gitignored. `.env.example`
+   carries blank values only. Never print, commit, or hardcode a key. The DAO
+   viewing key is server-side only and must never reach browser code.
+2. **Mainnet gate.** Any transaction that spends real funds or writes to
+   Starknet mainnet needs the maintainer's explicit go-ahead in that session,
+   with a one-line summary of what it does and what it costs. Sepolia is
+   free-fire.
+3. **Verify at build time.** Before writing code against any STRK20 symbol,
+   confirm its current name and signature in the docs mirror at
+   `https://strk20-by-example.org/llms-full.txt`. The docs win over any local
+   note, including this file. Flag drift when you find it.
+4. **Pins.** `starknet@^10.4.0` in every `package.json` — a bare install
+   resolves to a version without the STRK20 API. Cairo toolchain: Scarb 2.20.0,
+   Starknet Foundry 0.63.0, `snforge_std` 0.63.0. CI pins the same versions.
+5. **Build in public.** Commit small, push often, conventional commits. Keep
+   `strk20.json` current — append every mainnet hash the moment it lands, using
+   `node scripts/record-tx.ts <hash>`. Never batch this for later.
+6. **Honesty.** Never overclaim privacy. `docs/TRUST_MODEL.md` is the reference
+   for what is private, what is public, and what is trusted; the README and demo
+   must not claim more than it does.
+7. **Testing.** Every contract path gets an `snforge` test: access control,
+   double-claim, balance accounting, and a fuzzed claim preimage. Ballot-identity
+   derivation and tally math get TypeScript tests. The full lifecycle must be
+   green on Sepolia before anything is deployed to mainnet.
+
+## API facts that contradict common assumptions
+
+Verified against the docs mirror and the reference implementations on
+2026-08-16. Each of these will bite if assumed otherwise.
+
+1. **There is no `useStrk20` hook in the STRK20 API.** The name belongs to a
+   third-party wrapper with no documented signatures. The reference kit uses
+   plain state plus direct method calls on the wallet account object. Our own
+   hooks are ours to write.
+2. **On the wallet route, shielding is one call.** You send a single `deposit`
+   action and the wallet performs the token approval internally, so the user
+   sees two confirmations for one action. Say "two confirmations", not "two
+   transactions you send". The explicit two-transaction approve-then-deposit
+   sequence exists only on the SDK route, where nothing does it for you.
+3. **The wire action names are `deposit`, `withdraw`, and `transfer`.** Shield
+   and unshield are user-facing labels, not protocol verbs.
+4. **The Privacy SDK is not on npmjs.** Installing it needs either the GitHub
+   Packages registry (which requires a token even for public packages) or a
+   git-SHA install. There is no published version pin to copy; record whichever
+   SHA we settle on right here when we do.
+5. **`starknet@10.4.x` ships on the npm `next` tag.** The `latest` tag is still
+   on 10.0.x.
+6. **`privacy_invoke` has no fixed signature.** Only the return type,
+   `Span<OpenNoteDeposit>`, is part of the contract. The parameters are ours to
+   design, which is why our anonymizer can front several verbs from one entry
+   point via an operation enum.
+7. **Open-note amounts are public.** A treasury payout hides the recipient, not
+   the amount. Do not describe it otherwise.
+8. **Note discovery is cursor-based and scoped to a single viewing key.** There
+   are no block-range parameters and no third-party enumeration, so the tally
+   worker runs one client per ballot identity. The alternative discovery
+   provider is not exported from the published package, so an indexer is
+   required.
+9. **The mainnet indexer and proving-service URLs are still unpublished.** That
+   gates the SDK route on mainnet; the wallet route is unaffected. Do not guess
+   at endpoints — a wrong proving service fails in ways that look like our bug.
+10. **Calldata placeholders are literal strings.** `"OPEN"`, `"${poolAddress}"`,
+    and `"${openNoteIds[0]}"` are substituted by the wallet. Never normalize
+    them to hex; only real token and amount values get converted.
+
+## Protocol invariants
+
+- Notes mature ten blocks after creation, so freshly shielded funds cannot vote
+  immediately. Surface the wait in the UI.
+- Proving takes roughly half a minute. Every private action needs a real
+  progress state, not a spinner that reads as hung.
+- At most one external invoke per pool transaction.
+- Deposits are screened on-chain on every route; a flagged deposit reverts.
+- Sub-accounts are reachable only from the SDK route, never from a browser
+  wallet — so delegation, if we build it, lives server-side.
+- Private transactions are relayed, so the on-chain sender is a relayer.
+  Eligibility is judged from the pool's own deposit event, not the sender.
+
+## Constants
+
+| Thing | Value |
+|---|---|
+| STRK20 pool, mainnet | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a` |
+| STRK20 pool, Sepolia | `0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91` |
+| Chain | `SN_MAIN` / `SN_SEPOLIA` |
+| RPC | From `.env` only, never inline |
+| Docs mirror | `https://strk20-by-example.org/llms-full.txt` |
+
+## Layout
+
+`contracts/` Cairo (Scarb + Foundry) · `packages/strk20-governance` shared TS
+package · `apps/web` demo dapp · `services/tally` server-side tally worker ·
+`scripts/` tooling · `docs/` architecture, trust model, rubric map ·
+`strk20.json` the scored manifest at the repo root.
+
+## Where we are
+
+Phase 0: scaffold, registration, validation questions. Nothing is deployed and
+`strk20.json` is empty.
+
+## Definition of done
+
+A public MIT-licensed repo, a live demo on mainnet with no login wall, a
+three-minute video, and at least three verified pool-touching mainnet
+transactions in `strk20.json`. Beyond that: more recorded transactions covering
+the anonymizer and claim paths, a published package, rubric-mapped docs, and a
+stranger who can go from the README to a cast ballot without help.

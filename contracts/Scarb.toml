@@ -1,0 +1,22 @@
+[package]
+name = "aperture"
+version = "0.1.0"
+edition = "2024_07"
+
+# Toolchain pins (keep in sync with .github/workflows/ci.yml):
+#   Scarb 2.20.0 · Cairo 2.20.0 · Starknet Foundry 0.63.0
+[dependencies]
+starknet = "2.20.0"
+
+[dev-dependencies]
+snforge_std = "0.63.0"
+assert_macros = "2.20.0"
+
+[[target.starknet-contract]]
+sierra = true
+
+[scripts]
+test = "snforge test"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]

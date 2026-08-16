@@ -1,0 +1,22 @@
+{
+  "name": "@aperture/tally",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Server-side tally and refund worker. Holds the DAO viewing key.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aperture/strk20-governance": "workspace:*",
+    "starknet": "^10.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.3"
+  }
+}
