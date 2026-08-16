@@ -25,13 +25,32 @@ Status: v1 design, written Phase 0. Updated as the implementation lands.
 
 ## Trusted in v1
 
-- **The tally operator.** It holds the DAO viewing key, so it can see individual
-  ballots. It is trusted to publish only the aggregate.
-- **Refund honesty.** After a proposal closes, the operator returns the staked
-  vote weight through private transfers. Nothing on-chain forces it to.
+- **The tally operator.** It derives every ballot identity's viewing key from
+  the DAO master secret, so it can see individual ballots. It is trusted to
+  publish only the aggregate.
+- **The discovery service.** The count is only as complete as the indexer the
+  operator points at. Reads are pinned to a settled block hash so anyone can
+  re-run the same count and compare, but a dishonest or broken indexer could
+  under-report. The endpoint is configuration; no default is shipped.
+- **Refund honesty** — and see below, because in this version it is worse than a
+  trust assumption.
 
-Both are real trust assumptions, not technicalities. A DAO deploying Aperture as
-it stands is trusting whoever runs the tally service.
+These are real assumptions, not technicalities. A DAO deploying Aperture as it
+stands is trusting whoever runs the tally service.
+
+## Refunds do not work in this version
+
+The design says staked vote weight is returned after a proposal closes. Today it
+is **computed but not paid**. Issuing a refund is a private transfer, which
+requires a proof, which requires a proving service — and no proving endpoint has
+been published for mainnet or Sepolia.
+
+The worker builds the refund queue and reports exactly what is owed. Asking it
+to execute raises an error rather than half-working, because an operator who
+cannot pay should learn that immediately, not after telling voters their stake
+was returned.
+
+Treat voting as a one-way stake until this line says otherwise.
 
 ## The v2 path
 

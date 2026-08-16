@@ -54,30 +54,45 @@ Aperture uses both, deliberately.
 - **SDK route** — the tally worker. Holds its own keys server-side, and is the
   only route that can reach note discovery and sub-accounts.
 
-## Known blocker, and what we are doing about it
+## How the tally works
 
-No indexer/discovery or proving-service endpoint has been published for
-**either** network — not mainnet, not Sepolia. The SDK ships
-`IndexerDiscoveryProvider` but not the contract-based alternative, so note
-discovery currently has nothing to talk to.
+Counting is a **read**, and that is what makes it possible. Discovery needs an
+*indexer*; the heavyweight prover in the STRK20 stack is only needed to write.
+So the worker never runs one.
 
-This does not stop the product. The wallet route performs its own proving and
-discovery, so shielding, ballots, and refunds all work from the browser today.
-What it gates is the **tally worker**, which is the one component that must read
-notes it does not own a wallet for.
+For each choice it derives the ballot identity and its viewing key from the DAO
+master secret, reads the notes that identity received, and sums them. There is
+no batch discovery API — one viewing key sees one identity's inbox — so it fans
+out one read per choice and aggregates the results.
 
-Tallying is read-only, and that matters: it needs an *indexer*, not a prover.
-The heavyweight machine in the STRK20 stack is the prover, and we never need to
-run one. So, in preference order:
+Two details are load-bearing rather than incidental:
 
-1. **Self-host the discovery service.** It is open source in the protocol
-   monorepo and read-only, which keeps our deepest integration intact.
-2. **Run the tally as a CLI and show it honestly on video** if hosting proves
-   awkward mid-sprint.
-3. **Reimplement contract-based discovery** against raw RPC using the viewing
-   key — walking channels, subchannels, and notes ourselves. This is what the
-   unexported provider would have done. It is the most interesting option and
-   the riskiest; stretch only.
+- It reads **received-transfer history**, not the unspent-note set. The obvious
+  call, `discoverNotes`, returns only unspent notes and silently omits spent
+  ones. For a balance that is right; for a tally it would mean a ballot identity
+  that ever moved a note had that vote quietly vanish from the count.
+- Every read is **pinned to one settled block hash**, ten blocks behind the
+  head. Against a moving tag the set can shift between pages. Pinning also gives
+  reorg detection for free, since a hash that has been reorged out stops
+  resolving. Anyone can re-run the count against the same hash and get the same
+  answer.
 
-**Delegation is cut from v1.** Sub-accounts are reachable only from the SDK
-route, and the SDK route is gated on the same missing endpoints.
+Aggregation itself is a pure function in `packages/strk20-governance`, separate
+from anything that touches the network, and deduplicates by note id — paginated
+reads can legitimately return a note twice, and double-counting a vote would be
+silent.
+
+The indexer URL is configuration, never a constant. No discovery endpoint has
+been published for either network, so the operator chooses one and no such
+choice is baked into this repository.
+
+## Known limits
+
+**Refunds are computed but cannot be executed.** Returning stake is a private
+transfer, which needs a proof, which needs a proving service — and none is
+published. The worker builds the refund queue and refuses to pretend it can pay
+it. See `docs/TRUST_MODEL.md`.
+
+**Delegation is cut from v1.** Sub-accounts were renamed to shadow accounts, no
+anonymizer for them is deployed on any network, and the wallet route does not
+expose them at all.
