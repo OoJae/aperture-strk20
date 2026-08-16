@@ -9,8 +9,12 @@
   "engines": {
     "node": ">=24"
   },
+  "dependencies": {
+    "starknet": "^10.4.0"
+  },
   "scripts": {
     "typecheck": "pnpm -r --if-present typecheck",
+    "ballot-vectors": "node scripts/ballot-vectors.ts",
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
     "contracts:build": "cd contracts && scarb build",
