@@ -2,50 +2,35 @@
  * `@aperture/strk20-governance` — sealed-ballot governance on the STRK20
  * shielded pool.
  *
- * Phase 0 publishes the intended surface as types only, so the shape can be
- * reviewed before the implementations land. Extraction and the npm release
- * happen in Phase 5.
- */
-
-/** Ballot choices. Each gets its own receiving identity per proposal. */
-export type Choice = "for" | "against" | "abstain";
-
-/**
- * A per-proposal, per-choice receiving identity.
+ * A vote is a private transfer into a per-choice receiving identity. Nobody can
+ * see who voted, for what, or with how much — not even mid-vote — and only the
+ * aggregate is ever published.
  *
- * A vote is an ordinary private transfer into one of these, so an observer
- * sees a pool transaction and nothing else — not the choice, not the weight.
- */
-export interface BallotIdentity {
-  proposalId: bigint;
-  choice: Choice;
-  /** Address the voter sends their shielded weight to. */
-  address: string;
-}
-
-/** Aggregate result posted on-chain after the voting window closes. */
-export interface TallyResult {
-  proposalId: bigint;
-  forWeight: bigint;
-  againstWeight: bigint;
-  abstainWeight: bigint;
-}
-
-/**
- * Derives the receiving identity for one proposal/choice pair.
+ * The two halves you are most likely to want:
  *
- * Must be deterministic and reproducible client-side: the voter derives the
- * address to send to, and the tally service derives the same one to read from.
+ * - `deriveBallotIdentity` tells a voter where to send. It reproduces the
+ *   registry's on-chain derivation exactly, so a voter can verify the address
+ *   an interface offered them rather than trusting it.
+ * - `aggregateNotes` turns discovered notes into the published aggregate. It is
+ *   pure, so a tally can be reproduced and checked by anyone.
  */
-export declare function deriveBallotIdentity(
-  proposalId: bigint,
-  choice: Choice,
-): Promise<BallotIdentity>;
 
-/**
- * Sums the notes received by each choice's identity into an aggregate.
- *
- * Note discovery is scoped to a single viewing key, so the caller holds one
- * client per ballot identity. Individual ballots never leave the service.
- */
-export declare function tallyProposal(proposalId: bigint): Promise<TallyResult>;
+export {
+  BALLOT_TAG,
+  CHOICES,
+  ballotSalt,
+  choiceIndex,
+  deriveBallotIdentities,
+  deriveBallotIdentity,
+} from "./ballot.ts";
+export type { BallotConfig, BallotIdentity, Choice } from "./ballot.ts";
+
+export { aggregateNotes, willPass } from "./tally.ts";
+export type { BallotNote, NotesByChoice, TallyResult } from "./tally.ts";
+
+export {
+  MAX_VIEWING_KEY,
+  VIEWING_KEY_TAG,
+  assertValidViewingKey,
+  deriveBallotViewingKey,
+} from "./viewing-key.ts";

@@ -11,7 +11,8 @@
     "node": ">=24"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts"
   },
   "dependencies": {
     "starknet": "^10.4.0"
