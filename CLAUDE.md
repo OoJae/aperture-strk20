@@ -47,16 +47,11 @@ Verified against the docs mirror and the reference implementations on
    sequence exists only on the SDK route, where nothing does it for you.
 3. **The wire action names are `deposit`, `withdraw`, and `transfer`.** Shield
    and unshield are user-facing labels, not protocol verbs.
-4. **The Privacy SDK must come from GitHub Packages.** Current version is
-   `0.14.3-rc.5` (not the rc.4 quoted in most write-ups), living in the `sdk/`
-   directory of the public `starkware-libs/starknet-privacy` monorepo. Install
-   needs a token carrying `read:packages`:
-
-   ```sh
-   gh auth refresh -h github.com -s read:packages
-   npm config set @starkware-libs:registry https://npm.pkg.github.com
-   npm config set '//npm.pkg.github.com/:_authToken' "$(gh auth token)"
-   ```
+4. **The Privacy SDK comes from GitHub Packages — installed and working.**
+   `@starkware-libs/starknet-privacy-sdk` is pinned at **`0.14.3-rc.5`** in
+   `services/tally`. The registry pointer lives in the committed `.npmrc`; the
+   auth token lives only in `~/.npmrc`, never in the repo. Setup needs a token
+   carrying `read:packages` (`gh auth refresh -h github.com -s read:packages`).
 
    Both token-free routes were tested on 2026-08-16 and **neither works**:
    `pnpm add "github:starkware-libs/starknet-privacy#path:/sdk"` resolves but
@@ -65,6 +60,20 @@ Verified against the docs mirror and the reference implementations on
    script — importing it throws `ERR_MODULE_NOT_FOUND`. Building the SDK from a
    standalone clone of `sdk/` fails too (`Cannot find module 'hpke'`, a
    workspace sibling). Do not burn time re-deriving this.
+
+   **Its 23 exports, verified by import:** `createPrivateTransfers`,
+   `IndexerDiscoveryProvider`, `ProvingServiceProofProvider`, `ProvingService`,
+   `SimplePrivateTransfersImpl`, `Open`, `All`, `AddressMap`, `Channel`,
+   `Witness`, `SetupRequirement`, `MAX_VIEWING_KEY`, `createEmptyRegistry`,
+   `buildHistoryCursor`, `classifyTransaction`, `OhttpClient`, `WarningCode`,
+   `ShadowAccountAnonymizerABI`, and the screening errors `ScreeningRejected`,
+   `ScreeningUnavailable`, `screeningErrorFromProvingError`,
+   `ProvingServiceError`, `ProvingServiceHttpError`.
+
+   **Not exported, so we write them ourselves:** `computeCommitmentHash`,
+   `buildClaimInvoke`, `generateEscrowSecret`, `parseEscrowSecret`,
+   `buildClaimUrl`. Those appear in the escrow POC only because it built the
+   SDK from source locally.
 
    Treat the monorepo's own quickstart at
    `github.com/starkware-libs/starknet-privacy/blob/main/sdk/README.md` as
@@ -86,9 +95,15 @@ Verified against the docs mirror and the reference implementations on
    worker runs one client per ballot identity. The alternative discovery
    provider is not exported from the published package, so an indexer is
    required.
-9. **The mainnet indexer and proving-service URLs are still unpublished.** That
-   gates the SDK route on mainnet; the wallet route is unaffected. Do not guess
-   at endpoints — a wrong proving service fails in ways that look like our bug.
+9. **No indexer or proving-service URL is published for EITHER network** — not
+   mainnet, not Sepolia. The SDK repo still ships `TODO_MAINNET_INDEXER_URL`,
+   and `ContractDiscoveryProvider` is confirmed absent from the package's
+   exports, so an indexer is mandatory and we do not have one. This gates the
+   whole SDK route. The **wallet route is unaffected**, because the wallet does
+   its own proving and discovery — that is why mainnet transactions are still
+   possible today. Do not guess at endpoints; a wrong proving service fails in
+   ways that look like our bug. Upstream issue #31 raised exactly this and was
+   never answered (self-closed after 13 hours), so do not wait on a reply.
 10. **Calldata placeholders are literal strings.** `"OPEN"`, `"${poolAddress}"`,
     and `"${openNoteIds[0]}"` are substituted by the wallet. Never normalize
     them to hex; only real token and amount values get converted.

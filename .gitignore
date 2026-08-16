@@ -25,6 +25,7 @@ target/
 .agents/
 .DS_Store
 .claude/
+.playwright-mcp/
 .vercel
 *.log
 npm-debug.log*
