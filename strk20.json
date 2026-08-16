@@ -4,7 +4,10 @@
     "0x02e3cee5560517e9472d977fe11d4c81ddbe0087df6ce2562d4711fe8a28e947",
     "0x020cc7f861d8c455df4b4f84c284ff3dcb96a6f1f94898e95a4a1a2ec919803b"
   ],
-  "contracts": [],
+  "contracts": [
+    "0x045c7c6d4bbea680dadd7ea248ec793d84ad55f3d381be7c5710b12c900e1cf9",
+    "0x00533fedd104a3dd4097a6ad58f9a5637553f1a83f976867866cb60c02d7466d"
+  ],
   "demo_video": "",
   "demo_url": ""
 }
