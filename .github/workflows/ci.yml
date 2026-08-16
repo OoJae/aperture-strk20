@@ -17,6 +17,8 @@ jobs:
       - uses: software-mansion/setup-scarb@v1
         with:
           scarb-version: "2.20.0"
+          # The Cairo package lives in contracts/, not at the repo root.
+          scarb-lock: contracts/Scarb.lock
 
       - uses: foundry-rs/setup-snfoundry@v6
         with:
