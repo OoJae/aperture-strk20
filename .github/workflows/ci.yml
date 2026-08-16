@@ -35,6 +35,11 @@ jobs:
   typescript:
     name: TypeScript
     runs-on: ubuntu-latest
+    # The Privacy SDK is served from GitHub Packages, which requires a token
+    # even for public packages.
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +51,11 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+
+      # Written to the runner's home rather than the repo, so the committed
+      # .npmrc stays free of anything token-shaped.
+      - name: Authenticate to GitHub Packages
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
 
       - name: Install
         run: pnpm install --frozen-lockfile
