@@ -54,8 +54,30 @@ Aperture uses both, deliberately.
 - **SDK route** — the tally worker. Holds its own keys server-side, and is the
   only route that can reach note discovery and sub-accounts.
 
-## Known blocker
+## Known blocker, and what we are doing about it
 
-The mainnet indexer and proving-service endpoints are not published yet, which
-gates the SDK route on mainnet. The wallet route is unaffected. See
-`services/tally/README.md`.
+No indexer/discovery or proving-service endpoint has been published for
+**either** network — not mainnet, not Sepolia. The SDK ships
+`IndexerDiscoveryProvider` but not the contract-based alternative, so note
+discovery currently has nothing to talk to.
+
+This does not stop the product. The wallet route performs its own proving and
+discovery, so shielding, ballots, and refunds all work from the browser today.
+What it gates is the **tally worker**, which is the one component that must read
+notes it does not own a wallet for.
+
+Tallying is read-only, and that matters: it needs an *indexer*, not a prover.
+The heavyweight machine in the STRK20 stack is the prover, and we never need to
+run one. So, in preference order:
+
+1. **Self-host the discovery service.** It is open source in the protocol
+   monorepo and read-only, which keeps our deepest integration intact.
+2. **Run the tally as a CLI and show it honestly on video** if hosting proves
+   awkward mid-sprint.
+3. **Reimplement contract-based discovery** against raw RPC using the viewing
+   key — walking channels, subchannels, and notes ourselves. This is what the
+   unexported provider would have done. It is the most interesting option and
+   the riskiest; stretch only.
+
+**Delegation is cut from v1.** Sub-accounts are reachable only from the SDK
+route, and the SDK route is gated on the same missing endpoints.
