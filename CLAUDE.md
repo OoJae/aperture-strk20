@@ -107,6 +107,19 @@ Verified against the docs mirror and the reference implementations on
 10. **Calldata placeholders are literal strings.** `"OPEN"`, `"${poolAddress}"`,
     and `"${openNoteIds[0]}"` are substituted by the wallet. Never normalize
     them to hex; only real token and amount values get converted.
+11. **`sncast` needs RPC spec 0.10 or newer**, and Alchemy's bare host still
+    serves 0.8.1 — it fails with a misleading "Invalid block id". Use the
+    explicitly versioned path (`/starknet/version/rpc/v0_10/<key>`), which is in
+    `.env` as `STARKNET_RPC_URL_SNCAST` / `..._SEPOLIA_SNCAST`. `starknet.js`
+    is happy with the bare host, so only the Cairo tooling needs this.
+12. **`sncast script` was removed in Starknet Foundry 0.63**, along with
+    `sncast_std`. Deployment is driven by `sncast declare` / `deploy` / `invoke`
+    subcommands from a shell script, never a Cairo deployment script.
+13. **The contract-address formula is one hash-on-elements over five inputs**
+    (prefix, deployer, salt, class hash, calldata hash), each chain carrying a
+    leading zero and a trailing count — not a nested pedersen chain. Getting
+    this wrong yields a plausible but wrong address. `contracts/tests/
+    test_ballot.cairo` pins ours against starknet.js.
 
 ## Protocol invariants
 
