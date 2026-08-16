@@ -20,3 +20,7 @@ test = "snforge test"
 
 [tool.scarb]
 allow-prebuilt-plugins = ["snforge_std"]
+
+[tool.snforge]
+# Pinned so a fuzz failure in CI reproduces locally.
+fuzzer_seed = 1234
