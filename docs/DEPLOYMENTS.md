@@ -26,6 +26,27 @@ anonymizer `0x05c37265083181d3669f096b0a594ead9725b75ff4a413dae007c8ddab818a37`.
 - **Pool-only access control.** Calling `privacy_invoke` from an ordinary
   account reverts with `CALLER_NOT_POOL`. Only the pool can drive a payout.
 
+### The tally service, exercised against these contracts
+
+The worker in `services/tally` was run against the deployed registry above,
+reading from the Sepolia discovery service. It derived all three ballot
+identities for a proposal, pinned every read to a settled block ten behind the
+head, queried each identity, aggregated the result, and published it with
+`finalize()` — transaction
+[`0x5a4cf8ac…76899723`](https://sepolia.voyager.online/tx/0x5a4cf8acf50d220416e3a972af4321a63f872571fbdcea4c9a37a9976899723),
+`SUCCEEDED`. Reading back afterwards: proposal 2 shows `finalized: true` and a
+stored tally.
+
+**The published tally was zero, because no ballots had been cast.** What this
+proves is the *submission* path — derivation, discovery, aggregation, and the
+on-chain write — not the counting of real votes. Casting a sealed ballot
+requires a ballot identity with a registered viewing key, and registration is a
+pool transaction needing a proof; see the limits below.
+
+The discovery endpoint is configuration (`INDEXER_URL`), never a constant. No
+discovery service has been published for either network, so the operator
+chooses one and no such choice is committed here.
+
 ### What could not be exercised on Sepolia
 
 The payout register-and-claim path runs *through* the pool: it withdraws to the
