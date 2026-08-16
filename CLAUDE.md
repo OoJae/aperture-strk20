@@ -47,12 +47,19 @@ Verified against the docs mirror and the reference implementations on
    sequence exists only on the SDK route, where nothing does it for you.
 3. **The wire action names are `deposit`, `withdraw`, and `transfer`.** Shield
    and unshield are user-facing labels, not protocol verbs.
-4. **The Privacy SDK is not on npmjs.** Installing it needs either the GitHub
-   Packages registry (which requires a token even for public packages) or a
-   git-SHA install. There is no published version pin to copy; record whichever
-   SHA we settle on right here when we do.
+4. **The Privacy SDK is not on npmjs.** `@starkware-libs/starknet-privacy-sdk`
+   lives on the GitHub Packages registry, which needs a token even for public
+   packages, and requires Node 24 or newer. The alternative is a git-SHA
+   install. There is no published version pin to copy — record whichever SHA we
+   settle on right here when we do. Treat the monorepo's own quickstart at
+   `github.com/starkware-libs/starknet-privacy/blob/main/sdk/README.md` as
+   authoritative over any second-hand note, including this one.
 5. **`starknet@10.4.x` ships on the npm `next` tag.** The `latest` tag is still
-   on 10.0.x.
+   on 10.0.x. Our `^10.4.0` range currently resolves to 10.7.0, which does
+   export `WalletAccountV6` and the `walletV6` namespace — verified at install.
+   If you add get-starknet, pin `@starknet-io/get-starknet-discovery` and
+   `-wallet-standard` to 6.0.3 explicitly, and `@starknet-io/types-js` to
+   0.10.3.
 6. **`privacy_invoke` has no fixed signature.** Only the return type,
    `Span<OpenNoteDeposit>`, is part of the contract. The parameters are ours to
    design, which is why our anonymizer can front several verbs from one entry

@@ -20,6 +20,9 @@ target/
 *.tsbuildinfo
 
 # --- Tooling / OS ---
+# Vendored third-party agent skills. Reinstall from skills-lock.json with
+# `npx skills add starkience/strk20-agent-skills`.
+.agents/
 .DS_Store
 .claude/
 .vercel
