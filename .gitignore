@@ -31,3 +31,6 @@ npm-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 coverage/
+
+# Local-only working notes
+TELEGRAM_QUESTIONS.md
