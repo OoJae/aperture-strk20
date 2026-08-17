@@ -20,23 +20,30 @@ import {
 import type { BallotConfig } from "../src/ballot.ts";
 
 const CONFIG: BallotConfig = {
+  /**
+   * The OpenZeppelin account class, whose constructor takes exactly
+   * `[public_key]` — the calldata this derivation hashes. A class with a
+   * different constructor (Argent's takes `[0, pubkey, 1]`) produces addresses
+   * that look fine and correspond to no deployable account, so a vote sent to
+   * one could never be read.
+   */
   ballotAccountClassHash:
-    "0x036078334509b514626504edc9fb252328d1a240e4e948bef8d0c08dff45927f",
+    "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
   daoMasterPublicKey:
     "0x1818d42721b097dd91b7495207bc12bd38c73bd66cdb7bcf38c4e41902c1d4b",
 };
 
-/** Read back from ProposalRegistry at 0x045c7c6d…900e1cf9 on Sepolia. */
-const DEPLOYED_PROPOSAL_1_FOR =
-  "0x40fccba34a49389e3a9ccd6f11000833df7011d2825753eab823d9afb64e9bc";
+/** Same inputs asserted in contracts/tests/test_ballot.cairo. */
+const SHARED_VECTOR_PROPOSAL_1_FOR =
+  "0x4aeed2e767949f18d459243efb6060bf1256019dbd30e336451687fa7089510";
 
 describe("ballot address derivation", () => {
-  it("matches the address the deployed registry returns", () => {
+  it("agrees with the Cairo implementation on the shared vector", () => {
     const identity = deriveBallotIdentity(1n, "for", CONFIG);
     assert.equal(
       BigInt(identity.address),
-      BigInt(DEPLOYED_PROPOSAL_1_FOR),
-      "TypeScript must agree with the deployed Cairo contract",
+      BigInt(SHARED_VECTOR_PROPOSAL_1_FOR),
+      "TypeScript must agree with Cairo for identical inputs",
     );
   });
 

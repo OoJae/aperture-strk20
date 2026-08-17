@@ -9,20 +9,24 @@
 
 use aperture::ballot::{Choice, ballot_address, ballot_salt, choice_index, compute_address};
 
-const CLASS_HASH: felt252 = 0x036078334509b514626504edc9fb252328d1a240e4e948bef8d0c08dff45927f;
+/// The OpenZeppelin account class, whose constructor takes exactly
+/// `[public_key]` — the calldata this derivation hashes. Deriving against a
+/// class with a different constructor (Argent's takes `[0, pubkey, 1]`) yields
+/// addresses that look fine and correspond to no deployable account.
+const CLASS_HASH: felt252 = 0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564;
 const MASTER_PUB: felt252 = 0x1818d42721b097dd91b7495207bc12bd38c73bd66cdb7bcf38c4e41902c1d4b;
 
 #[test]
 fn compute_address_matches_starknet_js_salt_1() {
     let got = compute_address(1, CLASS_HASH, [MASTER_PUB].span());
-    let want: felt252 = 0x42863fe7f65fda4fb4f0d8714d4d9c25fae3899ed7efa8f7ea1b105ff045ff9;
+    let want: felt252 = 0x710d716fc033396fc946d32e3f9fb4d1fe146038bc148d5b51c28be58199f38;
     assert!(got == want.try_into().unwrap(), "address mismatch for salt=1");
 }
 
 #[test]
 fn compute_address_matches_starknet_js_salt_42() {
     let got = compute_address(42, CLASS_HASH, [MASTER_PUB].span());
-    let want: felt252 = 0x13b9ee29be38a989786213b38375ffcbd7316b6eaf8b3d46a78db3f6fcb7385;
+    let want: felt252 = 0x5a4ba5599e869dfc8a7bfc565818b93747f1c9c184e7b911f07519e2bcdadbf;
     assert!(got == want.try_into().unwrap(), "address mismatch for salt=42");
 }
 

@@ -17,11 +17,18 @@
 
 import { hash } from "starknet";
 
-/** The Ready/Argent v0.4 account class, as deployed on mainnet. */
+/**
+ * The OpenZeppelin account class, declared identically on mainnet and Sepolia.
+ *
+ * This must be a class whose constructor takes exactly `[public_key]`, because
+ * that is the calldata the derivation hashes. The Argent class takes
+ * `[0, pubkey, 1]`, so deriving against it yields addresses that look fine and
+ * correspond to no deployable account — a vote sent to one could never be read.
+ */
 const CLASS_HASH =
-  "0x036078334509b514626504edc9fb252328d1a240e4e948bef8d0c08dff45927f";
+  "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564";
 
-/** Stand-in for the DAO master public key; only its arithmetic matters here. */
+/** Fixed sample key. Only its arithmetic matters for the pinned vectors. */
 const MASTER_PUB =
   "0x1818d42721b097dd91b7495207bc12bd38c73bd66cdb7bcf38c4e41902c1d4b";
 
