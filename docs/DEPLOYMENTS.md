@@ -1,6 +1,37 @@
 # Deployments
 
+## Mainnet
+
+Deployed 2026-08-17. **These are the addresses the demo talks to.**
+
+| | Address |
+|---|---|
+| `ProposalRegistry` | `0x0371e11c7cae61bc2fd5ce6b75153d59746ecf2d88b286be6ebe9c7c001e330c` |
+| `GovernanceAnonymizer` | `0x05cc31d13d5901347d009f70f59abacb22b76e84963286004b67bf4644546890` |
+| STRK20 pool (mainnet) | `0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a` |
+
+Class hashes: registry `0x05ce106206f1ec3dfefd12dccfc3722b32fe7a0bd77b1c76c8f4947096d5ea1e`,
+anonymizer `0x05c37265083181d3669f096b0a594ead9725b75ff4a413dae007c8ddab818a37` —
+identical to Sepolia's, since a class hash is derived from the code itself.
+
+Verified on-chain after deploying: the anonymizer points at the mainnet pool and
+at this registry, and the registry derives ballot address
+`0x4ec8ba62…86a0b00` for FOR on proposal 1 — byte-identical to what starknet.js
+computes for the same inputs, and a counterfactual address a real
+OpenZeppelin account can be deployed at.
+
+Deploying these needed no prover and no indexer; they are ordinary contract
+deployments, which is why mainnet was reachable while the proving endpoints
+remain unpublished.
+
 ## Sepolia
+
+**Superseded.** The Sepolia registry below was constructed with the Argent
+account class as its ballot class. Argent's constructor takes `[0, pubkey, 1]`
+while the derivation passes `[pubkey]`, so the addresses it publishes are ones
+no account can be deployed at. It is kept here as a record of the Phase 2
+lifecycle run, not as something to vote against. The mainnet deployment above
+uses the OpenZeppelin class and is correct.
 
 Deployed 2026-08-16 with `sncast`, from `scripts/deploy-sepolia.sh`.
 
