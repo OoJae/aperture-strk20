@@ -1,18 +1,22 @@
 /**
  * Reading the notes sent to a ballot identity.
  *
- * Two properties of the discovery service shape this file, both from the SDK's
- * own source and specs:
+ * This reads **incoming state**, which is the only view that shows notes an
+ * identity *received*. The transaction-history endpoint is scoped to
+ * transactions a user submitted, so a ballot identity sees its own registration
+ * there and nothing else — a vote cast by someone else never appears. That
+ * distinction cost a debugging cycle: the tally reported an empty ballot box
+ * while the note sat happily on-chain.
  *
- * 1. **`discoverNotes` returns only unspent notes**, silently omitting spent
- *    ones. For a balance that is the right behaviour; for a tally it is a
- *    correctness bug waiting to happen, because a ballot identity that ever
- *    moved a received note would have that vote vanish from the count. So we
- *    read received-transfer history instead of the unspent set.
- * 2. **Enumeration must be pinned to a block hash.** Only hash mode gives
- *    consistency across paginated reads and reorg detection; against a moving
- *    tag the set can shift mid-count. A reorg surfaces as HTTP 409, and the
- *    documented response is to re-sync from scratch rather than reconcile.
+ * The known limitation of this view is that it returns **unspent** notes. That
+ * is correct here because ballot identities only ever receive: the DAO controls
+ * them and never spends from them during a vote. If that ever changes, a spent
+ * ballot would silently drop out of the count.
+ *
+ * Enumeration is pinned to a block hash. Only hash mode gives consistency
+ * across paginated reads and reorg detection; against a moving tag the set can
+ * shift mid-count. A reorg surfaces as HTTP 409, and the documented response is
+ * to re-sync from scratch rather than reconcile.
  *
  * Discovery is a pure query — no proof, no fee, no transaction. It needs the
  * indexer and never the prover, which is the only reason a tally is buildable
@@ -39,41 +43,35 @@ export interface DiscoveryOptions {
   blockHash: string;
 }
 
-interface HistoryTransfer {
-  action?: string;
+interface IncomingNote {
   note_id?: string;
   amount?: string;
+  sender_addr?: string;
+  token?: string;
+  block_number?: number;
 }
 
-interface HistoryTransaction {
-  notes?: HistoryTransfer[];
+interface IncomingStateResponse {
+  notes?: IncomingNote[];
+  cursor?: { subchannels?: unknown[]; history_complete?: boolean };
 }
 
-interface HistoryResponse {
-  transactions?: HistoryTransaction[];
-  cursor?: unknown;
-  history_complete?: boolean;
-}
-
-const HISTORY_PATH = "/v1/history";
+const INCOMING_PATH = "/v1/sync/incoming_state";
 const REORG_STATUS = 409;
-/** Server caps this at 100; ask for the maximum to reduce round trips. */
-const PAGE_SIZE = 100;
 
-async function postHistory(
+async function postIncomingState(
   options: DiscoveryOptions,
   identityAddress: string,
   viewingKey: bigint,
   cursor: unknown,
-): Promise<HistoryResponse> {
-  const response = await fetch(new URL(HISTORY_PATH, options.indexerUrl), {
+): Promise<IncomingStateResponse> {
+  const response = await fetch(new URL(INCOMING_PATH, options.indexerUrl), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       contract_address: options.poolAddress,
-      user_address: identityAddress,
+      recipient_address: identityAddress,
       viewing_key: `0x${viewingKey.toString(16)}`,
-      max_transactions: PAGE_SIZE,
       // block_ref and last_known_block are mutually exclusive. Pinning wins:
       // a block hash that has been reorged out stops resolving, so consistency
       // and reorg detection come from the same field.
@@ -88,7 +86,7 @@ async function postHistory(
       `Discovery failed (${response.status}): ${await response.text()}`,
     );
   }
-  return (await response.json()) as HistoryResponse;
+  return (await response.json()) as IncomingStateResponse;
 }
 
 /**
@@ -107,17 +105,19 @@ export async function discoverReceivedNotes(
   let cursor: unknown = undefined;
 
   for (;;) {
-    const page = await postHistory(options, identity.address, viewingKey, cursor);
+    const page = await postIncomingState(
+      options,
+      identity.address,
+      viewingKey,
+      cursor,
+    );
 
-    for (const transaction of page.transactions ?? []) {
-      for (const entry of transaction.notes ?? []) {
-        if (entry.action !== "transferReceived") continue;
-        if (!entry.note_id || entry.amount === undefined) continue;
-        notes.push({ id: entry.note_id, amount: BigInt(entry.amount) });
-      }
+    for (const note of page.notes ?? []) {
+      if (!note.note_id || note.amount === undefined) continue;
+      notes.push({ id: note.note_id, amount: BigInt(note.amount) });
     }
 
-    if (page.history_complete !== false || !page.cursor) break;
+    if (page.cursor?.history_complete !== false || !page.cursor) break;
     cursor = page.cursor;
   }
 
