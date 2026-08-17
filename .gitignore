@@ -35,3 +35,6 @@ coverage/
 
 # Local-only working notes
 TELEGRAM_QUESTIONS.md
+
+# Next.js static export output (built and deployed, not committed)
+apps/web/out/

@@ -8,6 +8,8 @@
     ],
     "module": "ESNext",
     "moduleResolution": "bundler",
+    // The shared package ships TypeScript source with explicit .ts imports.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
