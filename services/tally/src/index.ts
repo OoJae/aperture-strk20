@@ -42,6 +42,7 @@ async function main(argv: string[]): Promise<number> {
   const proposalId = BigInt(idArg);
   const config = loadConfig();
 
+  console.log(`Network: ${config.network}`);
   const health = await checkIndexerHealth(config.indexerUrl);
   if (!health.healthy) {
     console.error(`Indexer at ${config.indexerUrl} is not healthy; aborting.`);
