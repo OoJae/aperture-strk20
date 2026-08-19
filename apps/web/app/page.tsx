@@ -1,4 +1,5 @@
 import { Proposals } from "./components/Proposals.tsx";
+import { TreasuryPayout } from "./components/TreasuryPayout.tsx";
 import {
   ANONYMIZER_ADDRESS,
   POOL_ADDRESS,
@@ -38,6 +39,8 @@ export default function Home() {
       </section>
 
       <Proposals />
+
+      <TreasuryPayout />
 
       <section className="panel">
         <h2>What is private, and what is not</h2>
