@@ -12,7 +12,20 @@
  * hex-normalised; only real token and amount values get converted.
  */
 
+import { num } from "starknet";
 import { ANONYMIZER_ADDRESS } from "./chain.ts";
+
+/**
+ * The Wallet API validates every felt against
+ * `^0x(0|[a-fA-F1-9]{1}[a-fA-F0-9]{0,62})$` — a leading zero after `0x` is
+ * rejected outright. Starknet addresses are conventionally written
+ * zero-padded to 64 digits, so passing one through unchanged fails the whole
+ * request with `INVALID_REQUEST_PAYLOAD` and no indication of which field was
+ * at fault. Normalising strips the padding.
+ *
+ * This must never touch the placeholder strings the wallet substitutes.
+ */
+const felt = (value: string | bigint): string => num.toHex(BigInt(value));
 
 /** Mirrors GovernanceOperation in contracts/src/governance_anonymizer.cairo. */
 export const OP_REGISTER_PAYOUT = "0x0";
@@ -35,23 +48,22 @@ export interface PayoutParams {
  * transaction.
  */
 export function buildRegisterPayoutActions(p: PayoutParams): unknown[] {
-  const hex = (v: bigint) => `0x${v.toString(16)}`;
   return [
     {
       type: "withdraw",
-      token: p.token,
-      amount: hex(p.amount),
-      recipient: ANONYMIZER_ADDRESS,
+      token: felt(p.token),
+      amount: felt(p.amount),
+      recipient: felt(ANONYMIZER_ADDRESS),
     },
     {
       type: "invoke",
-      contract: ANONYMIZER_ADDRESS,
+      contract: felt(ANONYMIZER_ADDRESS),
       calldata: [
         OP_REGISTER_PAYOUT,
-        p.commitment,
-        p.token,
-        hex(p.amount),
-        hex(p.proposalId),
+        felt(p.commitment),
+        felt(p.token),
+        felt(p.amount),
+        felt(p.proposalId),
         "0x0",
         "0x0",
       ],
