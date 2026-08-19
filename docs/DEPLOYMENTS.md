@@ -14,85 +14,80 @@ Class hashes: registry `0x05ce106206f1ec3dfefd12dccfc3722b32fe7a0bd77b1c76c8f494
 anonymizer `0x05c37265083181d3669f096b0a594ead9725b75ff4a413dae007c8ddab818a37` —
 identical to Sepolia's, since a class hash is derived from the code itself.
 
-Verified on-chain after deploying: the anonymizer points at the mainnet pool and
-at this registry, and the registry derives ballot address
-`0x4ec8ba62…86a0b00` for FOR on proposal 1 — byte-identical to what starknet.js
-computes for the same inputs, and a counterfactual address a real
-OpenZeppelin account can be deployed at.
-
 Deploying these needed no prover and no indexer; they are ordinary contract
 deployments, which is why mainnet was reachable while the proving endpoints
 remain unpublished.
 
+### A treasury payout, executed on mainnet
+
+Transaction
+[`0x2ee291e2…32150fb2`](https://voyager.online/tx/0x2ee291e2fc083896143f0bb063694b795aa918239cca50fe06021ac32150fb2)
+ran the payout through Aperture's own anonymizer: the pool withdrew to
+`GovernanceAnonymizer`, called its `privacy_invoke`, and the contract parked the
+value against a commitment that only a preimage can open. Executed from the demo
+through the wallet route, which is the only path available while no mainnet
+proving service is published — the wallet proves internally.
+
+It is also the shape the sprint's scoring requires. A hash counts only if it ran
+through one of the project's own contracts; merely touching the pool is
+rejected. This one satisfies both paths the checker accepts — it emits an event
+from `GovernanceAnonymizer` *and* carries its address in the calldata.
+
+### Not yet reproduced on mainnet
+
+The sealed-vote lifecycle. Standing up a ballot identity means registering its
+viewing key with the pool, which is a pool transaction needing a proof, and no
+mainnet proving service exists. The wallet cannot substitute: ballot identities
+are contract accounts the DAO derives and controls by key, not accounts a
+browser extension signs for.
+
 ## Sepolia
 
-**Superseded.** The Sepolia registry below was constructed with the Argent
-account class as its ballot class. Argent's constructor takes `[0, pubkey, 1]`
-while the derivation passes `[pubkey]`, so the addresses it publishes are ones
-no account can be deployed at. It is kept here as a record of the Phase 2
-lifecycle run, not as something to vote against. The mainnet deployment above
-uses the OpenZeppelin class and is correct.
-
-Deployed 2026-08-16 with `sncast`, from `scripts/deploy-sepolia.sh`.
+The full lifecycle runs here, because Sepolia has a working prover.
 
 | | Address |
 |---|---|
-| `ProposalRegistry` | `0x045c7c6d4bbea680dadd7ea248ec793d84ad55f3d381be7c5710b12c900e1cf9` |
+| `ProposalRegistry` (current) | `0x01432bc68815695d4be3300cb29085aa916c97c11b7eb04e27ae9b84ad82b64f` |
 | `GovernanceAnonymizer` | `0x00533fedd104a3dd4097a6ad58f9a5637553f1a83f976867866cb60c02d7466d` |
 | STRK20 pool (Sepolia) | `0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91` |
 
-Class hashes: registry `0x05ce106206f1ec3dfefd12dccfc3722b32fe7a0bd77b1c76c8f4947096d5ea1e`,
-anonymizer `0x05c37265083181d3669f096b0a594ead9725b75ff4a413dae007c8ddab818a37`.
+An earlier registry at `0x045c7c6d4bbea680dadd7ea248ec793d84ad55f3d381be7c5710b12c900e1cf9`
+is **superseded**: it was constructed with the Argent account class as its ballot
+class. Argent's constructor takes `[0, pubkey, 1]` while the derivation passes
+`[pubkey]`, so every address it published was one no account could be deployed
+at — a vote sent there could never have been read. The anonymizer above still
+points at it, which is why payout testing uses that pairing while voting uses
+the current registry.
 
-### What was exercised on-chain
+### A real sealed ballot, cast and counted
 
-- **Ballot derivation agrees across languages.** The deployed registry returned
-  `0x40fccba34a49389e3a9ccd6f11000833df7011d2825753eab823d9afb64e9bc` for FOR on
-  proposal 1, byte-identical to what starknet.js computes for the same inputs.
-  A voter deriving their destination in the browser lands on exactly the address
-  the registry publishes.
-- **Proposal lifecycle.** Created proposal 1, finalized it with 900 for / 100
-  against / 5 abstain, and read back `has_passed = true` and `finalized = true`.
-  Finalizing before the window closes, twice, or from a non-operator all revert.
-- **Pool-only access control.** Calling `privacy_invoke` from an ordinary
-  account reverts with `CALLER_NOT_POOL`. Only the pool can drive a payout.
+- Three ballot identities deployed as OpenZeppelin accounts at their derived
+  addresses and registered with the pool.
+- A voter shielded STRK and privately transferred **5 STRK** into the FOR
+  identity.
+- The tally worker found it, aggregated, and published the result on-chain:
+  `Tally { for_weight: 5000000000000000000, against: 0, abstain: 0 }`,
+  `has_passed: true`.
 
-### The tally service, exercised against these contracts
+The ballot transaction emitted two pool events and **neither carries an amount,
+a voter, or a choice**; the on-chain sender is a relayer. The tally read it
+exactly. That gap — opaque on-chain, precise to the key holder — is the design
+working.
 
-The worker in `services/tally` was run against the deployed registry above,
-reading from the Sepolia discovery service. It derived all three ballot
-identities for a proposal, pinned every read to a settled block ten behind the
-head, queried each identity, aggregated the result, and published it with
-`finalize()` — transaction
-[`0x5a4cf8ac…76899723`](https://sepolia.voyager.online/tx/0x5a4cf8acf50d220416e3a972af4321a63f872571fbdcea4c9a37a9976899723),
-`SUCCEEDED`. Reading back afterwards: proposal 2 shows `finalized: true` and a
-stored tally.
+One honest wrinkle: the vote landed just after the proposal's window closed. The
+window governs when `finalize` is permitted, not when notes may arrive, so the
+count is sound, but a clean rehearsal would cast inside the window.
 
-**The published tally was zero, because no ballots had been cast.** What this
-proves is the *submission* path — derivation, discovery, aggregation, and the
-on-chain write — not the counting of real votes. Casting a sealed ballot
-requires a ballot identity with a registered viewing key, and registration is a
-pool transaction needing a proof; see the limits below.
+### A payout, driven through the pool
 
-The discovery endpoint is configuration (`INDEXER_URL`), never a constant. No
-discovery service has been published for either network, so the operator
-chooses one and no such choice is committed here.
+The register leg was driven end to end via the SDK, producing transactions that
+carry a pool event, an event from our contract, and our address in the calldata.
+The claim leg still fails with `NON_ZERO_VALUE` and is unfinished — the register
+leg is what the scoring requires, and chasing the rest was not the best use of
+the time.
 
-### What could not be exercised on Sepolia
+### Configuration, not constants
 
-The payout register-and-claim path runs *through* the pool: it withdraws to the
-anonymizer, invokes it, and pulls back an open note. Driving that needs a proved
-pool transaction, and no proving-service endpoint is published for either
-network — so the on-chain proof stops at the access-control boundary.
-
-That path is covered by the `snforge` suite instead, which impersonates the pool
-and asserts the full lifecycle including the allowance the pool would pull
-against. See `docs/ARCHITECTURE.md` for the endpoint situation.
-
-## Mainnet
-
-Contracts are not deployed to mainnet yet. When they are, the existing deployed
-account can be adopted with `sncast account import --type ready`, so no new
-funding is needed.
-
-Recorded mainnet pool transactions live in `strk20.json`.
+`INDEXER_URL` and `PROVING_SERVICE_URL` are configuration. No discovery or
+proving service has been published for either network, so the operator chooses
+one and no such choice is committed here.

@@ -38,6 +38,48 @@ Status: v1 design, written Phase 0. Updated as the implementation lands.
 These are real assumptions, not technicalities. A DAO deploying Aperture as it
 stands is trusting whoever runs the tally service.
 
+## Aperture is not receipt-free
+
+This is the sharpest limit in the design, and the one most easily mistaken for
+something stronger.
+
+Ballot secrecy means an observer cannot tell how you voted. Aperture has that.
+**Receipt-freeness** means you cannot prove how you voted *even if you want to*.
+Aperture does not have it, and is in one respect worse than a generic shielded
+transfer: `ballot_address(proposal_id, choice)` is a public view on our own
+registry, so the destination address is a canonical public label of the choice.
+A voter who reveals their viewing key hands a briber a receipt the briber can
+check against this repository's own contract, in seconds, without our
+cooperation. In a system like Zcash the recipient is a semantics-free
+pseudonym; here it encodes the vote.
+
+There is also nothing to lie with. A voter cannot re-vote, rotate a key, or
+produce a plausible false receipt, so a coercer who demands proof gets a real
+one.
+
+What Aperture genuinely removes is the *free, public, at-scale* verifiability
+that makes trustless bribery markets work: nobody can scrape outcomes, and a
+buyer must transact with each seller individually and trust what they are shown.
+That is a real increase in cost. It is not coercion resistance, and the README
+does not claim it is.
+
+Closing this properly needs a mechanism this design lacks — MACI's key-change
+trick, where a voter can invalidate an earlier ballot so any receipt they hand
+over might already be void, is the best-known approach.
+
+## The tally is not verifiable
+
+The operator publishes an aggregate and nothing proves it is the correct sum of
+the ballots actually cast. Reads are pinned to a settled block hash so a second
+party with the same viewing keys can re-run the count and compare, but that
+audits the operator against itself rather than against the chain.
+
+Systems that solve this — Helios, Belenios, MACI — publish either a homomorphic
+tally with a proof of correct decryption, or a ZK proof that the published
+result follows from the committed ballot set. A credible first step here would
+be publishing a commitment to the ballot set alongside the aggregate, so the
+claim becomes checkable in principle rather than taken on faith.
+
 ## Refunds do not work in this version
 
 The design says staked vote weight is returned after a proposal closes. Today it
@@ -58,6 +100,14 @@ Treat voting as a one-way stake until this line says otherwise.
   ballots.
 - Move refunds into the anonymizer so they are contract-enforced rather than
   operator-promised.
+- Publish a commitment to the ballot set with the aggregate, so the tally can be
+  checked rather than trusted.
+- Add a re-voting or key-rotation mechanism, without which no amount of
+  encryption buys coercion resistance.
+- Add a quorum. `has_passed` compares for-weight against against-weight and
+  nothing else, so a single ballot with no turnout passes a proposal and unlocks
+  a treasury payout. The anonymizer's registry pointer is immutable, so this
+  needs both contracts redeployed together.
 
 ## Notes on the protocol itself
 

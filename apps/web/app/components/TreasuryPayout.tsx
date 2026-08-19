@@ -28,6 +28,32 @@ function supportsStrk20(versions: string[]): boolean {
   });
 }
 
+/**
+ * Proving normally takes about half a minute. The wallet's proving relay has
+ * been known to hang rather than fail, and an unbounded await leaves the page
+ * spinning forever with nothing to act on — so give up and say so.
+ */
+const PROVING_TIMEOUT_MS = 180_000;
+
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              "The wallet's proving service did not respond within three minutes. " +
+                "Nothing was submitted and no fee was charged — this is usually " +
+                "the relay being unavailable rather than anything wrong here. Try again later.",
+            ),
+          ),
+        ms,
+      ),
+    ),
+  ]);
+}
+
 type State =
   | { kind: "idle" }
   | { kind: "working"; note: string }
@@ -88,11 +114,14 @@ export function TreasuryPayout() {
         wallet as never,
       );
 
-      const result = await (
-        account as unknown as {
-          strk20InvokeTransaction: (a: unknown[]) => Promise<{ transaction_hash: string }>;
-        }
-      ).strk20InvokeTransaction(actions);
+      const result = await withTimeout(
+        (
+          account as unknown as {
+            strk20InvokeTransaction: (a: unknown[]) => Promise<{ transaction_hash: string }>;
+          }
+        ).strk20InvokeTransaction(actions),
+        PROVING_TIMEOUT_MS,
+      );
 
       setState({ kind: "done", hash: result.transaction_hash, secret });
     } catch (e) {
