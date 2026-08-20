@@ -20,11 +20,12 @@ remain unpublished.
 
 ### Treasury payouts, executed on mainnet
 
-Two transactions ran the full payout through Aperture's own anonymizer —
-[`0x2ee291e2…32150fb2`](https://voyager.online/tx/0x2ee291e2fc083896143f0bb063694b795aa918239cca50fe06021ac32150fb2)
+Three transactions ran the full payout through Aperture's own anonymizer —
+[`0x2ee291e2…32150fb2`](https://voyager.online/tx/0x2ee291e2fc083896143f0bb063694b795aa918239cca50fe06021ac32150fb2),
+[`0x31b96770…4e009326`](https://voyager.online/tx/0x31b96770b38847d43631af41813bdc54335e7628f850411e856b07f4e009326)
 and
-[`0x31b96770…4e009326`](https://voyager.online/tx/0x31b96770b38847d43631af41813bdc54335e7628f850411e856b07f4e009326).
-Both emit `ExternalContractInvoked`. A third,
+[`0x4ed6e167…bd4e390d`](https://voyager.online/tx/0x4ed6e16702fe98bea43e7a26bc54bf76353ab4fa49f9341dc39cf20bd4e390d).
+Each emits `ExternalContractInvoked`. A fourth,
 [`0x39d820c7…c8faca81`](https://voyager.online/tx/0x39d820c7b45e7d1752cd7d3171b689437c045d3bd1a5526e5259e49c8faca81),
 moved treasury value into the anonymizer *without* invoking it — it counts, but
 it is the shallower artifact and is listed separately rather than blurred in
