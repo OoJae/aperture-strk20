@@ -14,7 +14,7 @@ import { walletV6 } from "starknet";
 import { ANONYMIZER_ADDRESS, VOYAGER, shortHex } from "../lib/chain.ts";
 import {
   PAYOUT_TAG,
-  buildRegisterAgainstHeldActions,
+  buildFundAnonymizerActions,
   buildRegisterPayoutActions,
 } from "../lib/payout.ts";
 
@@ -23,6 +23,13 @@ const STRK = "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d
 /** Proposal 2 on the mainnet registry — finalized and passed. */
 const PROPOSAL_ID = 2n;
 const AMOUNT = 2n * 10n ** 18n;
+
+/**
+ * Deliberately small. The pool's flat fee dwarfs it either way, and a smaller
+ * withdrawal selects fewer notes — which is the other thing that makes a proof
+ * expensive to produce.
+ */
+const FUND_AMOUNT = 1n * 10n ** 18n;
 
 /** STRK20 landed in Wallet API 0.10.3; below that the call does not exist. */
 function supportsStrk20(versions: string[]): boolean {
@@ -67,7 +74,7 @@ type State =
 export function TreasuryPayout() {
   const [state, setState] = useState<State>({ kind: "idle" });
 
-  async function run(mode: "withdraw" | "held") {
+  async function run(mode: "payout" | "fund") {
     try {
       setState({ kind: "working", note: "connecting" });
 
@@ -110,9 +117,9 @@ export function TreasuryPayout() {
         commitment,
       };
       const actions =
-        mode === "withdraw"
+        mode === "payout"
           ? buildRegisterPayoutActions(params)
-          : buildRegisterAgainstHeldActions(params);
+          : buildFundAnonymizerActions({ ...params, amount: FUND_AMOUNT });
 
       setState({ kind: "working", note: "proving — this takes about half a minute" });
       const { WalletAccountV6 } = await import("starknet");
@@ -166,19 +173,20 @@ export function TreasuryPayout() {
 
       {state.kind === "idle" ? (
         <div className="actions">
-          <button className="cta" onClick={() => run("withdraw")}>
+          <button className="cta" onClick={() => run("payout")}>
             Register a 2 STRK payout
           </button>
-          <button className="cta secondary" onClick={() => run("held")}>
-            Register against funds already held
+          <button className="cta secondary" onClick={() => run("fund")}>
+            Fund the anonymizer with 1 STRK
           </button>
         </div>
       ) : null}
 
       <p className="small dim">
-        The second button skips the withdrawal and registers against STRK the
-        anonymizer already holds. One fewer phase for the pool to prove, which
-        helps when the wallet&rsquo;s proving relay is struggling.
+        The first runs the whole payout — five phases for the pool to prove. The
+        second moves treasury value into the anonymizer and nothing else, which
+        is about as cheap as a pool transaction gets; use it when the
+        wallet&rsquo;s proving relay is refusing the longer one.
       </p>
 
       {state.kind === "working" ? <p className="dim">{state.note}…</p> : null}

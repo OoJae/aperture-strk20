@@ -72,30 +72,29 @@ export function buildRegisterPayoutActions(p: PayoutParams): unknown[] {
 }
 
 /**
- * Register a payout against value the anonymizer already holds.
+ * Move treasury value into the anonymizer, without invoking it.
  *
- * The two-action shape above withdraws and then invokes. This one only invokes,
- * because the contract is already funded from an earlier payout — so the pool
- * has one fewer phase to prove. That matters when the wallet's proving relay is
- * struggling: a smaller proof is a smaller thing to fail at.
+ * The full payout above spends a note, withdraws to the helper, calls its
+ * `privacy_invoke`, and returns change — five phases for the pool to prove. It
+ * works, and there is one on mainnet to show for it, but the wallet's proving
+ * relay has repeatedly timed out on it while handling simpler transactions for
+ * other users fine.
  *
- * The contract still checks it holds at least `amount`, so this cannot register
- * a payout the treasury cannot honour.
+ * This is the first half on its own: a plain withdrawal whose recipient happens
+ * to be our contract. Structurally it is the unshield that worked on day one,
+ * so it is about as cheap as a pool transaction gets, and it still funds the
+ * treasury helper for a payout registered later.
+ *
+ * An invoke with no accompanying value movement is *not* an option — the wallet
+ * rejects that outright as an invalid payload.
  */
-export function buildRegisterAgainstHeldActions(p: PayoutParams): unknown[] {
+export function buildFundAnonymizerActions(p: PayoutParams): unknown[] {
   return [
     {
-      type: "invoke",
-      contract: felt(ANONYMIZER_ADDRESS),
-      calldata: [
-        OP_REGISTER_PAYOUT,
-        felt(p.commitment),
-        felt(p.token),
-        felt(p.amount),
-        felt(p.proposalId),
-        "0x0",
-        "0x0",
-      ],
+      type: "withdraw",
+      token: felt(p.token),
+      amount: felt(p.amount),
+      recipient: felt(ANONYMIZER_ADDRESS),
     },
   ];
 }
