@@ -12,7 +12,11 @@ import { useState } from "react";
 import { hash, num, shortString } from "starknet";
 import { walletV6 } from "starknet";
 import { ANONYMIZER_ADDRESS, VOYAGER, shortHex } from "../lib/chain.ts";
-import { PAYOUT_TAG, buildRegisterPayoutActions } from "../lib/payout.ts";
+import {
+  PAYOUT_TAG,
+  buildRegisterAgainstHeldActions,
+  buildRegisterPayoutActions,
+} from "../lib/payout.ts";
 
 const STRK = "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
 
@@ -63,7 +67,7 @@ type State =
 export function TreasuryPayout() {
   const [state, setState] = useState<State>({ kind: "idle" });
 
-  async function run() {
+  async function run(mode: "withdraw" | "held") {
     try {
       setState({ kind: "working", note: "connecting" });
 
@@ -99,12 +103,16 @@ export function TreasuryPayout() {
         secret,
       ]);
 
-      const actions = buildRegisterPayoutActions({
+      const params = {
         token: STRK,
         amount: AMOUNT,
         proposalId: PROPOSAL_ID,
         commitment,
-      });
+      };
+      const actions =
+        mode === "withdraw"
+          ? buildRegisterPayoutActions(params)
+          : buildRegisterAgainstHeldActions(params);
 
       setState({ kind: "working", note: "proving — this takes about half a minute" });
       const { WalletAccountV6 } = await import("starknet");
@@ -157,10 +165,21 @@ export function TreasuryPayout() {
       </p>
 
       {state.kind === "idle" ? (
-        <button className="cta" onClick={run}>
-          Register a 2 STRK payout
-        </button>
+        <div className="actions">
+          <button className="cta" onClick={() => run("withdraw")}>
+            Register a 2 STRK payout
+          </button>
+          <button className="cta secondary" onClick={() => run("held")}>
+            Register against funds already held
+          </button>
+        </div>
       ) : null}
+
+      <p className="small dim">
+        The second button skips the withdrawal and registers against STRK the
+        anonymizer already holds. One fewer phase for the pool to prove, which
+        helps when the wallet&rsquo;s proving relay is struggling.
+      </p>
 
       {state.kind === "working" ? <p className="dim">{state.note}…</p> : null}
 

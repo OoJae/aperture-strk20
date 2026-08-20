@@ -70,3 +70,32 @@ export function buildRegisterPayoutActions(p: PayoutParams): unknown[] {
     },
   ];
 }
+
+/**
+ * Register a payout against value the anonymizer already holds.
+ *
+ * The two-action shape above withdraws and then invokes. This one only invokes,
+ * because the contract is already funded from an earlier payout — so the pool
+ * has one fewer phase to prove. That matters when the wallet's proving relay is
+ * struggling: a smaller proof is a smaller thing to fail at.
+ *
+ * The contract still checks it holds at least `amount`, so this cannot register
+ * a payout the treasury cannot honour.
+ */
+export function buildRegisterAgainstHeldActions(p: PayoutParams): unknown[] {
+  return [
+    {
+      type: "invoke",
+      contract: felt(ANONYMIZER_ADDRESS),
+      calldata: [
+        OP_REGISTER_PAYOUT,
+        felt(p.commitment),
+        felt(p.token),
+        felt(p.amount),
+        felt(p.proposalId),
+        "0x0",
+        "0x0",
+      ],
+    },
+  ];
+}
