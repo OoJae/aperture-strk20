@@ -36,10 +36,13 @@ export function Chrome({
           <a href="/how">How it works</a>
           <a href="/trust">What&rsquo;s private</a>
           <a href="/proof">Proof</a>
-          <a className="nav-cta" href="/app">
-            Open the app
-          </a>
         </nav>
+        {/* Sibling of the link list, not a member of it: it is the one action,
+            not a fourth destination. Being a direct child of .nav is also what
+            lets the mobile grid place it without absolute positioning. */}
+        <a className="nav-cta" href="/app">
+          Open the app
+        </a>
       </header>
 
       {iris ? (

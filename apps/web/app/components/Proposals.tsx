@@ -119,7 +119,7 @@ export function Proposals() {
 
               return (
                 <li key={proposal.id.toString()}>
-                  <div className="row">
+                  <div className="proposal-line">
                     <strong>#{proposal.id.toString()}</strong>
                     <span className="uri">
                       {decodeShortString(proposal.metadataUri)}
