@@ -158,6 +158,11 @@ Sharp edges worth knowing before you build against the pool:
   was wrong.
 - The pool charges a **flat fee per transaction**, taken from your *shielded*
   balance rather than your wallet — 6 STRK on mainnet, 2 on Sepolia.
+- **Insufficient shielded balance surfaces as a timeout, not an error.** A pool
+  action that cannot cover its amount plus the flat fee hangs in proving, or
+  returns `OHTTP request failed (500)`, rather than saying what is wrong. Three
+  days were lost here to theories about proving relays and note discovery; the
+  answer was simply to shield more. Check the shielded balance first.
 
 ## License
 

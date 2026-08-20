@@ -65,10 +65,18 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
+type Mode = "payout" | "fund";
+
 type State =
   | { kind: "idle" }
   | { kind: "working"; note: string }
-  | { kind: "done"; hash: string; secret: string }
+  /**
+   * The mode is carried through so the result can describe what actually
+   * happened. Funding the anonymizer registers no commitment, so reporting a
+   * payout — and handing over a preimage that opens nothing — would be a lie
+   * told in the one place a user is most likely to believe it.
+   */
+  | { kind: "done"; mode: Mode; hash: string; secret: string }
   | { kind: "error"; message: string };
 
 export function TreasuryPayout() {
@@ -138,7 +146,7 @@ export function TreasuryPayout() {
         PROVING_TIMEOUT_MS,
       );
 
-      setState({ kind: "done", hash: result.transaction_hash, secret });
+      setState({ kind: "done", mode, hash: result.transaction_hash, secret });
     } catch (e) {
       setState({
         kind: "error",
@@ -195,17 +203,25 @@ export function TreasuryPayout() {
 
       {state.kind === "done" ? (
         <div>
-          <p className="ok">Payout registered.</p>
+          <p className="ok">
+            {state.mode === "payout"
+              ? "Payout registered."
+              : "Treasury funded. The anonymizer now holds the value; no payout was registered."}
+          </p>
           <p className="small">
             <a href={`${VOYAGER}/tx/${state.hash}`} target="_blank" rel="noreferrer">
               {shortHex(state.hash, 12, 8)}
             </a>
           </p>
-          <p className="small bad">
-            Save this preimage — it is the only thing that can claim the payout,
-            and it is not stored anywhere:
-          </p>
-          <p className="mono small">{state.secret}</p>
+          {state.mode === "payout" ? (
+            <>
+              <p className="small bad">
+                Save this preimage — it is the only thing that can claim the
+                payout, and it is not stored anywhere:
+              </p>
+              <p className="mono small">{state.secret}</p>
+            </>
+          ) : null}
         </div>
       ) : null}
     </section>
