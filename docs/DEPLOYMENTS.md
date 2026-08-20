@@ -18,20 +18,30 @@ Deploying these needed no prover and no indexer; they are ordinary contract
 deployments, which is why mainnet was reachable while the proving endpoints
 remain unpublished.
 
-### A treasury payout, executed on mainnet
+### Treasury payouts, executed on mainnet
 
-Transaction
+Two transactions ran the full payout through Aperture's own anonymizer —
 [`0x2ee291e2…32150fb2`](https://voyager.online/tx/0x2ee291e2fc083896143f0bb063694b795aa918239cca50fe06021ac32150fb2)
-ran the payout through Aperture's own anonymizer: the pool withdrew to
+and
+[`0x31b96770…4e009326`](https://voyager.online/tx/0x31b96770b38847d43631af41813bdc54335e7628f850411e856b07f4e009326).
+Both emit `ExternalContractInvoked`. A third,
+[`0x39d820c7…c8faca81`](https://voyager.online/tx/0x39d820c7b45e7d1752cd7d3171b689437c045d3bd1a5526e5259e49c8faca81),
+moved treasury value into the anonymizer *without* invoking it — it counts, but
+it is the shallower artifact and is listed separately rather than blurred in
+with the other two.
+
+In each payout: the pool withdrew to
 `GovernanceAnonymizer`, called its `privacy_invoke`, and the contract parked the
 value against a commitment that only a preimage can open. Executed from the demo
 through the wallet route, which is the only path available while no mainnet
 proving service is published — the wallet proves internally.
 
-It is also the shape the sprint's scoring requires. A hash counts only if it ran
-through one of the project's own contracts; merely touching the pool is
-rejected. This one satisfies both paths the checker accepts — it emits an event
-from `GovernanceAnonymizer` *and* carries its address in the calldata.
+These are also the shape the sprint's scoring requires. A hash counts only if it
+ran through one of the project's own contracts; merely touching the pool is
+rejected. The three earliest hashes in `strk20.json` are shield, private
+transfer, and unshield — real pool transactions, but through nobody's code but
+the pool's, so they score nothing and are kept for the record rather than the
+count.
 
 ### Not yet reproduced on mainnet
 
