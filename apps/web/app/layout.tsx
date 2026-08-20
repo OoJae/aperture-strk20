@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Aperture — sealed-ballot governance on STRK20",
   description:
     "Sealed-ballot DAO voting and a shielded treasury, native to the STRK20 shielded pool on Starknet mainnet.",
+  icons: { icon: "/aperture.svg" },
 };
 
 export const viewport: Viewport = {

@@ -10,7 +10,7 @@ importers:
     dependencies:
       starknet:
         specifier: ^10.4.0
-        version: 10.7.0(typescript@5.9.3)
+        version: 10.7.0(zod@4.4.3)
 
   apps/web:
     dependencies:
@@ -23,6 +23,9 @@ importers:
       '@starknet-io/get-starknet-wallet-standard':
         specifier: 6.0.2
         version: 6.0.2(typescript@5.9.3)(zod@4.4.3)
+      lenis:
+        specifier: ^1.3.26
+        version: 1.3.26(react@19.2.1)
       next:
         specifier: ^16.0.8
         version: 16.3.1(@types/node@24.13.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -35,6 +38,9 @@ importers:
       starknet:
         specifier: ^10.4.0
         version: 10.7.0(typescript@5.9.3)(zod@4.4.3)
+      three:
+        specifier: ^0.185.1
+        version: 0.185.1
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -45,6 +51,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.0
         version: 19.2.4(@types/react@19.2.18)
+      '@types/three':
+        specifier: ^0.185.4
+        version: 0.185.4
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -53,7 +62,7 @@ importers:
     dependencies:
       starknet:
         specifier: ^10.4.0
-        version: 10.7.0(typescript@5.9.3)
+        version: 10.7.0(typescript@5.9.3)(zod@4.4.3)
     devDependencies:
       typescript:
         specifier: ^5.9.3
@@ -69,7 +78,7 @@ importers:
         version: 0.14.3-rc.5(typescript@5.9.3)
       starknet:
         specifier: ^10.4.0
-        version: 10.7.0(typescript@5.9.3)
+        version: 10.7.0(typescript@5.9.3)(zod@3.25.76)
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -82,6 +91,9 @@ packages:
 
   '@adraffy/ens-normalize@1.11.1':
     resolution: {integrity: sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==}
+
+  '@dimforge/rapier3d-compat@0.12.0':
+    resolution: {integrity: sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow==}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -423,6 +435,9 @@ packages:
   '@swc/helpers@0.5.23':
     resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
 
+  '@tweenjs/tween.js@23.1.3':
+    resolution: {integrity: sha512-vJmvvwFxYuGnF2axRtPYocag6Clbb5YS7kLL+SO/TeVFzHqDIWrNKYtcsPMibjDx9O+bu+psAy9NKfWklassUA==}
+
   '@types/node@24.13.3':
     resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
 
@@ -433,6 +448,15 @@ packages:
 
   '@types/react@19.2.18':
     resolution: {integrity: sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w==}
+
+  '@types/stats.js@0.17.4':
+    resolution: {integrity: sha512-jIBvWWShCvlBqBNIZt0KAshWpvSjhkwkEu4ZUcASoAvhmrgAUI2t1dXrjSL4xXVLB4FznPrIsX3nKXFl/Dt4vA==}
+
+  '@types/three@0.185.4':
+    resolution: {integrity: sha512-gAsBIC07NIFrxjbf7tH2t71c38uulFfk/RFoC7FNBSjMRAQ8J1x/RBvusX0N5PJouaYFJawXQqfCQ0RKUx/1nA==}
+
+  '@types/webxr@0.5.24':
+    resolution: {integrity: sha512-h8fgEd/DpoS9CBrjEQXR+dIDraopAEfu4wYVNY2tEPwk60stPWhvZMf4Foo5FakuQ7HFZoa8WceaWFervK2Ovg==}
 
   '@wallet-standard/base@1.1.1':
     resolution: {integrity: sha512-gggIHTtxicF9XFMQ12DkfS6NAG92Ak795JeSA7f2whAQ6Y3AkMWWuCMxSZXG2NIPN42kEaZSNVjqMsJRaJRxMQ==}
@@ -643,6 +667,9 @@ packages:
   fd-slicer@1.1.0:
     resolution: {integrity: sha512-cE1qsB/VwyQozZ+q1dGxR8LBYNZeofhEdUNGSMbQD3Gw2lAzX9Zb3uIU6Ebc/Fmyjo9AWWfnn0AUCHqtevs/8g==}
 
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
+
   file-type@3.9.0:
     resolution: {integrity: sha512-RLoqTXE8/vPmMuTI88DAzhMYC99I8BWv7zYP4A1puo5HIjEJ5EX48ighy4ZyKMG9EDXxBgW6e++cn7d1xuFghA==}
     engines: {node: '>=0.10.0'}
@@ -761,6 +788,20 @@ packages:
   jsonfile@6.2.1:
     resolution: {integrity: sha512-zwOTdL3rFQ/lRdBnntKVOX6k5cKJwEc1HdilT71BWEu7J41gXIB2MRp+vxduPSwZJPWBxEzv4yH1wYLJGUHX4Q==}
 
+  lenis@1.3.26:
+    resolution: {integrity: sha512-s/xTCZCxTFvHbAN1OzuhNaN5YPJH2ail0XAkctKW1b+RUAG4nUL5UHLXwNko1h8aEeT2jspBXegMgPJd8zcuag==}
+    peerDependencies:
+      '@nuxt/kit': '>=3.0.0'
+      react: '>=17.0.0'
+      vue: '>=3.0.0'
+    peerDependenciesMeta:
+      '@nuxt/kit':
+        optional: true
+      react:
+        optional: true
+      vue:
+        optional: true
+
   lossless-json@4.3.1:
     resolution: {integrity: sha512-SqD/Bg3ZfltBJ2Z14hJ/BihnvtV553WO4g9/ePtlp4lrnl9jF3AdIJt53A/Wkg/0Li+LMfxaBqgx1MiFZdQlpQ==}
 
@@ -771,6 +812,9 @@ packages:
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
+
+  meshoptimizer@1.1.1:
+    resolution: {integrity: sha512-oRFNWJRDA/WTrVj7NWvqa5HqE1t9MYDj2VaWirQCzCCrAd2GHrqR/sQezCxiWATPNlKTcRaPRHPJwIRoPBAp5g==}
 
   mime-db@1.52.0:
     resolution: {integrity: sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==}
@@ -972,6 +1016,9 @@ packages:
     resolution: {integrity: sha512-rzS0heiNf8Xn7/mpdSVVSMAWAoy9bfb1WOTYC78Z0UQKeKa/CWS8FOq0lKGNa8DWKAn9gxjCvMLYc5PGXYlK2A==}
     engines: {node: '>= 0.8.0'}
 
+  three@0.185.1:
+    resolution: {integrity: sha512-5aojFCXKwnjBRZvUnt3WFfEcvUJgkN5LlijRFN95hMy8WVkG4I0QNcJE+OuWvuJ0bOdStrbfXn0pkd6/QyiAlg==}
+
   through@2.3.8:
     resolution: {integrity: sha512-w89qg7PI8wAdvX60bMDP+bFoD5Dvhm9oLheFp5O4a2QF0cSBGsBX4qZmadPMvVqlLJBBci+WqGGOAPvcDeNSVg==}
 
@@ -1043,6 +1090,8 @@ packages:
 snapshots:
 
   '@adraffy/ens-normalize@1.11.1': {}
+
+  '@dimforge/rapier3d-compat@0.12.0': {}
 
   '@emnapi/runtime@1.11.3':
     dependencies:
@@ -1284,16 +1333,6 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@starknet-io/get-starknet-wallet-standard@5.0.0(typescript@5.9.3)':
-    dependencies:
-      '@starknet-io/types-js': 0.7.10
-      '@wallet-standard/base': 1.1.1
-      '@wallet-standard/features': 1.1.1
-      ox: 0.4.4(typescript@5.9.3)
-    transitivePeerDependencies:
-      - typescript
-      - zod
-
   '@starknet-io/get-starknet-wallet-standard@5.0.0(typescript@5.9.3)(zod@3.25.76)':
     dependencies:
       '@starknet-io/types-js': 0.7.10
@@ -1310,6 +1349,16 @@ snapshots:
       '@wallet-standard/base': 1.1.1
       '@wallet-standard/features': 1.1.1
       ox: 0.4.4(typescript@5.9.3)(zod@4.4.3)
+    transitivePeerDependencies:
+      - typescript
+      - zod
+
+  '@starknet-io/get-starknet-wallet-standard@5.0.0(zod@4.4.3)':
+    dependencies:
+      '@starknet-io/types-js': 0.7.10
+      '@wallet-standard/base': 1.1.1
+      '@wallet-standard/features': 1.1.1
+      ox: 0.4.4(zod@4.4.3)
     transitivePeerDependencies:
       - typescript
       - zod
@@ -1334,12 +1383,12 @@ snapshots:
       - typescript
       - zod
 
-  '@starknet-io/get-starknet-wallet-standard@6.0.4(typescript@5.9.3)':
+  '@starknet-io/get-starknet-wallet-standard@6.0.4(typescript@5.9.3)(zod@3.25.76)':
     dependencies:
       '@starknet-io/types-js': 0.10.4-beta.2
       '@wallet-standard/base': 1.1.1
       '@wallet-standard/features': 1.1.1
-      ox: 0.4.4(typescript@5.9.3)
+      ox: 0.4.4(typescript@5.9.3)(zod@3.25.76)
     transitivePeerDependencies:
       - typescript
       - zod
@@ -1350,6 +1399,16 @@ snapshots:
       '@wallet-standard/base': 1.1.1
       '@wallet-standard/features': 1.1.1
       ox: 0.4.4(typescript@5.9.3)(zod@4.4.3)
+    transitivePeerDependencies:
+      - typescript
+      - zod
+
+  '@starknet-io/get-starknet-wallet-standard@6.0.4(zod@4.4.3)':
+    dependencies:
+      '@starknet-io/types-js': 0.10.4-beta.2
+      '@wallet-standard/base': 1.1.1
+      '@wallet-standard/features': 1.1.1
+      ox: 0.4.4(zod@4.4.3)
     transitivePeerDependencies:
       - typescript
       - zod
@@ -1389,6 +1448,8 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@tweenjs/tween.js@23.1.3': {}
+
   '@types/node@24.13.3':
     dependencies:
       undici-types: 7.18.2
@@ -1400,6 +1461,19 @@ snapshots:
   '@types/react@19.2.18':
     dependencies:
       csstype: 3.2.3
+
+  '@types/stats.js@0.17.4': {}
+
+  '@types/three@0.185.4':
+    dependencies:
+      '@dimforge/rapier3d-compat': 0.12.0
+      '@tweenjs/tween.js': 23.1.3
+      '@types/stats.js': 0.17.4
+      '@types/webxr': 0.5.24
+      fflate: 0.8.3
+      meshoptimizer: 1.1.1
+
+  '@types/webxr@0.5.24': {}
 
   '@wallet-standard/base@1.1.1': {}
 
@@ -1414,10 +1488,6 @@ snapshots:
       fs-extra: 10.1.0
       yargs: 17.7.3
 
-  abitype@1.3.0(typescript@5.9.3):
-    optionalDependencies:
-      typescript: 5.9.3
-
   abitype@1.3.0(typescript@5.9.3)(zod@3.25.76):
     optionalDependencies:
       typescript: 5.9.3
@@ -1426,6 +1496,10 @@ snapshots:
   abitype@1.3.0(typescript@5.9.3)(zod@4.4.3):
     optionalDependencies:
       typescript: 5.9.3
+      zod: 4.4.3
+
+  abitype@1.3.0(zod@4.4.3):
+    optionalDependencies:
       zod: 4.4.3
 
   agent-base@6.0.2:
@@ -1629,6 +1703,8 @@ snapshots:
     dependencies:
       pend: 1.2.0
 
+  fflate@0.8.3: {}
+
   file-type@3.9.0: {}
 
   file-type@5.2.0: {}
@@ -1737,6 +1813,10 @@ snapshots:
     optionalDependencies:
       graceful-fs: 4.2.11
 
+  lenis@1.3.26(react@19.2.1):
+    optionalDependencies:
+      react: 19.2.1
+
   lossless-json@4.3.1: {}
 
   make-dir@1.3.0:
@@ -1744,6 +1824,8 @@ snapshots:
       pify: 3.0.0
 
   math-intrinsics@1.1.0: {}
+
+  meshoptimizer@1.1.1: {}
 
   mime-db@1.52.0: {}
 
@@ -1792,20 +1874,6 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  ox@0.4.4(typescript@5.9.3):
-    dependencies:
-      '@adraffy/ens-normalize': 1.11.1
-      '@noble/curves': 1.9.7
-      '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.7.0
-      '@scure/bip39': 1.6.0
-      abitype: 1.3.0(typescript@5.9.3)
-      eventemitter3: 5.0.1
-    optionalDependencies:
-      typescript: 5.9.3
-    transitivePeerDependencies:
-      - zod
-
   ox@0.4.4(typescript@5.9.3)(zod@3.25.76):
     dependencies:
       '@adraffy/ens-normalize': 1.11.1
@@ -1831,6 +1899,18 @@ snapshots:
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: 5.9.3
+    transitivePeerDependencies:
+      - zod
+
+  ox@0.4.4(zod@4.4.3):
+    dependencies:
+      '@adraffy/ens-normalize': 1.11.1
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.3.0(zod@4.4.3)
+      eventemitter3: 5.0.1
     transitivePeerDependencies:
       - zod
 
@@ -1984,14 +2064,14 @@ snapshots:
       - typescript
       - zod
 
-  starknet@10.7.0(typescript@5.9.3):
+  starknet@10.7.0(typescript@5.9.3)(zod@3.25.76):
     dependencies:
       '@noble/curves': 1.7.0
       '@noble/hashes': 1.6.1
       '@scure/base': 1.2.6
       '@scure/starknet': 1.1.0
-      '@starknet-io/get-starknet-wallet-standard': 5.0.0(typescript@5.9.3)
-      '@starknet-io/get-starknet-wallet-standard-v6': '@starknet-io/get-starknet-wallet-standard@6.0.4(typescript@5.9.3)'
+      '@starknet-io/get-starknet-wallet-standard': 5.0.0(typescript@5.9.3)(zod@3.25.76)
+      '@starknet-io/get-starknet-wallet-standard-v6': '@starknet-io/get-starknet-wallet-standard@6.0.4(typescript@5.9.3)(zod@3.25.76)'
       '@starknet-io/starknet-types-0101': '@starknet-io/types-js@0.10.2'
       '@starknet-io/starknet-types-0103': '@starknet-io/types-js@0.10.3'
       '@starknet-io/starknet-types-0104': '@starknet-io/types-js@0.10.4-beta.2'
@@ -2010,6 +2090,24 @@ snapshots:
       '@scure/starknet': 1.1.0
       '@starknet-io/get-starknet-wallet-standard': 5.0.0(typescript@5.9.3)(zod@4.4.3)
       '@starknet-io/get-starknet-wallet-standard-v6': '@starknet-io/get-starknet-wallet-standard@6.0.4(typescript@5.9.3)(zod@4.4.3)'
+      '@starknet-io/starknet-types-0101': '@starknet-io/types-js@0.10.2'
+      '@starknet-io/starknet-types-0103': '@starknet-io/types-js@0.10.3'
+      '@starknet-io/starknet-types-0104': '@starknet-io/types-js@0.10.4-beta.2'
+      '@starknet-io/starknet-types-09': '@starknet-io/types-js@0.9.2'
+      abi-wan-kanabi: 2.2.4
+      lossless-json: 4.3.1
+    transitivePeerDependencies:
+      - typescript
+      - zod
+
+  starknet@10.7.0(zod@4.4.3):
+    dependencies:
+      '@noble/curves': 1.7.0
+      '@noble/hashes': 1.6.1
+      '@scure/base': 1.2.6
+      '@scure/starknet': 1.1.0
+      '@starknet-io/get-starknet-wallet-standard': 5.0.0(zod@4.4.3)
+      '@starknet-io/get-starknet-wallet-standard-v6': '@starknet-io/get-starknet-wallet-standard@6.0.4(zod@4.4.3)'
       '@starknet-io/starknet-types-0101': '@starknet-io/types-js@0.10.2'
       '@starknet-io/starknet-types-0103': '@starknet-io/types-js@0.10.3'
       '@starknet-io/starknet-types-0104': '@starknet-io/types-js@0.10.4-beta.2'
@@ -2052,6 +2150,8 @@ snapshots:
       readable-stream: 2.3.8
       to-buffer: 1.2.2
       xtend: 4.0.2
+
+  three@0.185.1: {}
 
   through@2.3.8: {}
 

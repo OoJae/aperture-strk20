@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="Aperture">
+  <path d="M114.0 64.0L89.0 107.3L74.5 82.2Z" fill="var(--m,#FF3B18)" opacity="1"/>
+  <path d="M89.0 107.3L39.0 107.3L53.5 82.2Z" fill="currentColor" opacity="0.39"/>
+  <path d="M39.0 107.3L14.0 64.0L43.0 64.0Z" fill="currentColor" opacity="0.48"/>
+  <path d="M14.0 64.0L39.0 20.7L53.5 45.8Z" fill="currentColor" opacity="0.57"/>
+  <path d="M39.0 20.7L89.0 20.7L74.5 45.8Z" fill="currentColor" opacity="0.66"/>
+  <path d="M89.0 20.7L114.0 64.0L85.0 64.0Z" fill="currentColor" opacity="0.75"/>
+</svg>
