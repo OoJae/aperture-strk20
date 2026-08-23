@@ -1,0 +1,9 @@
+{
+  "network": "sepolia",
+  "registryClassHash": "0x76d3e9940d0d201c99cdb7a26b7f038645f05b5bbcea492d19e694c877f107e",
+  "anonymizerClassHash": "0x0238b81d0425989d5eb7ad6452fbef34ec370d403a0f4afc8b491e0f6078eb65",
+  "registry": "0x02a7fea0197b6299c1c1effd7f7ec4319b8e027298cd64a40652b6b0263aac4c",
+  "ballotDomain": "0xcc1f7b8663e2b20955f70d09d3da4603937fdca46828bb21d16fb1d04451cf",
+  "anonymizer": "0x0490ea9d4752b57eb4abafa1d1b340324ce9a3d6caba579d13cd311dcd948600",
+  "deployedAt": "2026-08-23"
+}
