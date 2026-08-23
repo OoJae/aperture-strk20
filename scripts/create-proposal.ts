@@ -3,8 +3,8 @@
  *
  *   node scripts/create-proposal.ts "<metadata-uri>" [options]
  *
- *     --lead   <blocks>  how far ahead the window opens   (default 20)
- *     --span   <blocks>  how long it stays open           (default 40)
+ *     --lead   <minutes> how far ahead the window opens   (default 10)
+ *     --span   <minutes> how long it stays open           (default 60)
  *     --quorum <strk>    turnout floor for this proposal  (default: the registry's)
  *     --cap    <strk>    most this proposal may pay out   (default 0)
  *
@@ -18,6 +18,14 @@
  * against the block this transaction actually lands in, not the one it was
  * built against, so a window opening at head+1 is a coin flip that costs a fee
  * to lose.
+ *
+ * Both are minutes, converted using the chain's measured block time, because
+ * blocks are the wrong unit for a human to reason in and the rate is not a
+ * constant. The first attempt at this asked for a 45-BLOCK window on a Sepolia
+ * running 1.67 s/block: 75 seconds, against a single private transaction that
+ * needs about 30 of them to prove. The window closed unused and its three
+ * ballot identities were stranded. Sizing in minutes and printing the block
+ * count makes that mistake visible before it is paid for.
  */
 
 import { Account, RpcProvider, shortString } from "starknet";
@@ -78,11 +86,41 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  const lead = Number(flag("lead", "20"));
-  const span = Number(flag("span", "40"));
+  const leadMinutes = Number(flag("lead", "10"));
+  const spanMinutes = Number(flag("span", "60"));
   const head = await provider.getBlockNumber();
+
+  // Measured, not assumed. Sepolia and mainnet run at very different rates and
+  // neither is stable enough to hardcode.
+  const SAMPLE = 500;
+  const [older, newer] = await Promise.all([
+    provider.getBlock(Math.max(head - SAMPLE, 1)),
+    provider.getBlock(head),
+  ]);
+  const sampled = head - Math.max(head - SAMPLE, 1);
+  const blockSeconds =
+    sampled > 0 ? (newer.timestamp - older.timestamp) / sampled : 30;
+  const toBlocks = (minutes: number): number =>
+    Math.max(1, Math.round((minutes * 60) / blockSeconds));
+
+  const lead = toBlocks(leadMinutes);
+  const span = toBlocks(spanMinutes);
   const startBlock = head + lead;
   const endBlock = startBlock + span;
+
+  // A private transaction needs roughly half a minute to prove, and a freshly
+  // shielded note is not spendable for ten blocks. A window that cannot fit one
+  // vote is not a window.
+  const MATURITY_BLOCKS = 10;
+  const minimumUsable = MATURITY_BLOCKS + Math.ceil(90 / blockSeconds);
+  if (span < minimumUsable) {
+    console.error(
+      `A ${spanMinutes}-minute window is ${span} blocks at ${blockSeconds.toFixed(2)}s each. ` +
+        `A single vote needs at least ${minimumUsable} (ten for the note to mature, ` +
+        `the rest to prove and land). Widen --span.`,
+    );
+    return 2;
+  }
 
   const [floorFelt] = await callFelt(provider, config.registryAddress, "min_quorum");
   const floor = BigInt(floorFelt!);
@@ -101,7 +139,11 @@ async function main(): Promise<number> {
   console.log(`\nProposal on ${config.network}`);
   console.log(`  registry  ${config.registryAddress}`);
   console.log(`  metadata  ${metadataUri}`);
-  console.log(`  window    ${startBlock} .. ${endBlock}  (head is ${head}; opens in ${lead}, runs ${span})`);
+  console.log(
+    `  window    ${startBlock} .. ${endBlock}  ` +
+      `(${span} blocks at ${blockSeconds.toFixed(2)}s = ~${spanMinutes} min)`,
+  );
+  console.log(`  opens     in ${lead} blocks, ~${leadMinutes} min from block ${head}`);
   console.log(`  quorum    ${strk(quorum)} STRK${quorumArg === undefined ? " (the registry's floor)" : ""}`);
   console.log(`  token     ${config.strkTokenAddress}`);
   console.log(`  cap       ${strk(cap)} STRK\n`);

@@ -34,14 +34,26 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 /**
  * What each identity is sent before it deploys itself.
  *
- * It has to cover its own deploy_account gas and then the pool's flat fee when
- * it registers its viewing key — 2 STRK on Sepolia, 6 on mainnet — with room
- * for one retry. Underfunding strands an identity whose address the registry
- * publishes but which cannot act, which is worse than not deploying it at all.
+ * Measured, after the first attempt failed. The earlier figures — 5 STRK on
+ * Sepolia, 9 on mainnet — were reasoned from the pool's flat fee (2 and 6) plus
+ * deploy gas, and that is not what a register costs. Registering a viewing key
+ * is a proof-carrying pool transaction, and the node demanded resource bounds
+ * of about 5.8 STRK against a balance of 4.88:
+ *
+ *     l2_gas: 125_070_600 units at 46_129_033_246 -> ~5.77 STRK
+ *
+ * Bounds are a ceiling, not a bill — the transaction settles for far less — but
+ * the account must be able to cover the ceiling or validation refuses it before
+ * anything runs. The flat fee was never the binding constraint.
+ *
+ * Generous on purpose. Underfunding strands an identity whose address the
+ * registry publishes but which cannot act, which is worse than not deploying it
+ * at all, and the surplus is recoverable: these accounts are ours and the key
+ * that signs for them is in .env.
  */
 const FUNDING = {
-  sepolia: 5n * 10n ** 18n,
-  mainnet: 9n * 10n ** 18n,
+  sepolia: 15n * 10n ** 18n,
+  mainnet: 20n * 10n ** 18n,
 } as const;
 
 function loadEnv(): Record<string, string> {

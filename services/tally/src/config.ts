@@ -22,8 +22,48 @@
  */
 
 import { ec } from "starknet";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { assertValidViewingKey } from "@aperture/strk20-governance";
 import { ENV_SPEC, requiredFor, type EnvVarSpec } from "./env-spec.ts";
+
+/**
+ * Fill `process.env` from the repo-root `.env`, for anything not already set.
+ *
+ * Nothing did this. Node does not read `.env` on its own, no entry point passed
+ * `--env-file`, and no loader was imported — so every command in the README
+ * ("node services/tally/src/index.ts 1") died on the first required variable.
+ * Configuration that only works if you already know an undocumented flag is
+ * configuration that does not work.
+ *
+ * It belongs here rather than in each script because this is the one module
+ * every entry point already imports, so there is no entry point that can forget
+ * it — and it runs on import rather than inside `loadConfig`, because
+ * `cast-vote`, `register-ballots` and `payout-lifecycle` read `process.env`
+ * directly for the proving and indexer URLs, before any config is loaded.
+ *
+ * Already-set variables win, so an explicit `export`, a `--env-file`, or CI
+ * secrets all override the file rather than being overridden by it. A missing
+ * file is silent: that is the normal case in CI.
+ */
+let dotEnvLoaded = false;
+export function loadDotEnv(): void {
+  if (dotEnvLoaded) return;
+  dotEnvLoaded = true;
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+  const path = resolve(root, ".env");
+  if (!existsSync(path)) return;
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match || line.trimStart().startsWith("#")) continue;
+    const [, key, rawValue] = match;
+    if (key === undefined || key in process.env) continue;
+    process.env[key] = rawValue!.trim().replace(/^(['"])(.*)\1$/, "$2");
+  }
+}
+
+loadDotEnv();
 
 export type Network = "mainnet" | "sepolia";
 
@@ -215,7 +255,11 @@ function reportKeyCoupling(roles: Record<string, bigint | undefined>): void {
   }
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): TallyConfig {
+export function loadConfig(explicitEnv?: NodeJS.ProcessEnv): TallyConfig {
+  // A caller passing an explicit environment — every test does — gets exactly
+  // what it passed, so a `.env` sitting on a developer's disk cannot change what
+  // a test asserts.
+  const env = explicitEnv ?? process.env;
   const network = parseNetwork(env.APERTURE_NETWORK);
   const vars = NETWORK_VARS[network];
 

@@ -22,6 +22,8 @@ import {
   deriveBallotViewingKey,
 } from "@aperture/strk20-governance";
 import { loadConfig } from "./config.ts";
+import { describeError } from "./report-error.ts";
+import { ensurePoolAllowance } from "./pool-allowance.ts";
 import { readBallotDomain } from "./registry.ts";
 
 const provingServiceUrl = process.env.PROVING_SERVICE_URL;
@@ -74,6 +76,16 @@ async function main(argv: string[]): Promise<number> {
         cairoVersion: "1",
       });
 
+      // The pool pulls its flat fee from this account during the register.
+      // Nothing on the SDK route approves it for you.
+      const approval = await ensurePoolAllowance({
+        provider,
+        account,
+        pool: config.poolAddress,
+        token: config.strkTokenAddress,
+      });
+      if (approval) process.stdout.write("approved, ");
+
       const transfers = createPrivateTransfers({
         account,
         viewingKeyProvider: { getViewingKey: async () => viewingKey },
@@ -102,7 +114,7 @@ async function main(argv: string[]): Promise<number> {
       console.log(`registered in ${tx.transaction_hash}`);
     } catch (error) {
       console.log("FAILED");
-      console.error(`      ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`      ${describeError(error)}`);
       return 1;
     }
   }
