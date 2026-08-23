@@ -1,0 +1,11 @@
+{
+  "network": "sepolia",
+  "registryClassHash": "0x76d3e9940d0d201c99cdb7a26b7f038645f05b5bbcea492d19e694c877f107e",
+  "anonymizerClassHash": "0x0238b81d0425989d5eb7ad6452fbef34ec370d403a0f4afc8b491e0f6078eb65",
+  "registry": "0x02a7fea0197b6299c1c1effd7f7ec4319b8e027298cd64a40652b6b0263aac4c",
+  "ballotDomain": "0xcc1f7b8663e2b20955f70d09d3da4603937fdca46828bb21d16fb1d04451cf",
+  "anonymizer": "0x0490ea9d4752b57eb4abafa1d1b340324ce9a3d6caba579d13cd311dcd948600",
+  "deployedAt": "2026-08-23",
+  "superseded": "2026-08-23",
+  "supersededBecause": "Never used. These contracts are immutable and carry two bugs found by the pre-flight review that ran after they were deployed: claim() trusting calldata for value it moved (fa94165), and register_payout being reachable by anyone, which let a stranger burn a proposal's payout cap permanently (f509a6c). Recorded rather than deleted so the addresses are known-dead instead of merely absent."
+}

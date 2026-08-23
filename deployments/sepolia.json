@@ -1,9 +1,10 @@
 {
   "network": "sepolia",
-  "registryClassHash": "0x76d3e9940d0d201c99cdb7a26b7f038645f05b5bbcea492d19e694c877f107e",
-  "anonymizerClassHash": "0x0238b81d0425989d5eb7ad6452fbef34ec370d403a0f4afc8b491e0f6078eb65",
-  "registry": "0x02a7fea0197b6299c1c1effd7f7ec4319b8e027298cd64a40652b6b0263aac4c",
-  "ballotDomain": "0xcc1f7b8663e2b20955f70d09d3da4603937fdca46828bb21d16fb1d04451cf",
-  "anonymizer": "0x0490ea9d4752b57eb4abafa1d1b340324ce9a3d6caba579d13cd311dcd948600",
+  "registryClassHash": "0x017b824cdadca3849e194f528fbc1740060210fb1f02ae7505055e56b380605a",
+  "anonymizerClassHash": "0x0659758006c9e0c8bac1ea0fe33df8a2ff5549fd5be90744184f11935471a542",
+  "registry": "0x058b9e29599a1f20fd316254b965bcf7feaed7b4d48268055c1ba38d500602ff",
+  "daoMasterPublicKey": "0x19fc7bf266b468a25073da987cf4b6392346b6c2c1cbfaf19be13e1bdcd3702",
+  "ballotDomain": "0x725eaed3ac4a3056ab56c0075aaac0b62408006a46d5c3c2cc90d866e24e5cd",
+  "anonymizer": "0x03986832c64ebc2e73395405d77577062021b49e749acf10ec3074ceb3e355b7",
   "deployedAt": "2026-08-23"
 }

@@ -126,7 +126,8 @@ async function main(): Promise<number> {
   }
 
   const identities = CHOICES.map((choice) => ({
-    choice,
+    // `choice` comes from deriveBallotIdentity below; spreading it after a
+    // local copy silently overwrote one with the other.
     salt: ballotSalt(domain, proposalId, choice),
     ...deriveBallotIdentity(proposalId, choice, {
       ballotAccountClassHash: config.ballotAccountClassHash,

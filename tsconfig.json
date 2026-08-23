@@ -1,0 +1,25 @@
+{
+  // Covers scripts/, which nothing typechecked until 2026-08-23.
+  //
+  // The workspace typecheck is `pnpm -r`, which only visits packages — and
+  // scripts/ is not one. Every deploy, vector and manifest tool was therefore
+  // shipped unchecked, including scripts/deploy.ts, whose three parsing bugs
+  // were found by running it against Sepolia rather than by reading it.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // The scripts run under `node scripts/x.ts` with no build step, so the
+    // imports carry explicit .ts extensions.
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["scripts"]
+}

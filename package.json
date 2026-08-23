@@ -13,7 +13,7 @@
     "starknet": "^10.4.0"
   },
   "scripts": {
-    "typecheck": "pnpm -r --if-present typecheck",
+    "typecheck": "tsc --noEmit && pnpm -r --if-present typecheck",
     "ballot-vectors": "node scripts/ballot-vectors.ts",
     "build": "pnpm -r --if-present build",
     "test": "node --test scripts/tests/*.test.ts && pnpm -r --if-present test",
@@ -22,5 +22,9 @@
     "contracts:build": "cd contracts && scarb build",
     "contracts:test": "cd contracts && snforge test",
     "record-tx": "node scripts/record-tx.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^5.9.3"
   }
 }
