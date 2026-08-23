@@ -1,3 +1,4 @@
+import { ACTIVE, DEPLOYMENTS } from "@aperture/strk20-governance";
 import { Chrome } from "../components/Chrome.tsx";
 
 /**
@@ -10,30 +11,35 @@ const STEPS = [
     h: "Shield",
     p: "You deposit into the STRK20 pool. This part is public: your address, the token, and the amount are all visible. Privacy begins after it.",
     aside: "Public",
+    where: "Either network. This demo has no shield control; use a wallet that speaks STRK20.",
   },
   {
     n: "02",
     h: "Derive the destination",
     p: "Each proposal has one receiving identity per choice, derived from public inputs. Your browser computes it independently and checks it against what the contract publishes, so you never take the address on faith.",
     aside: "Verifiable",
+    where: "Either network — but agreeing on an address is not the same as an account existing at it, and on mainnet none does.",
   },
   {
     n: "03",
     h: "Cast",
     p: "Your ballot is a private transfer into the identity for your choice. On-chain it emits a nullifier and an encrypted note — no amount, no voter, no choice. The sender is a relayer, not you.",
     aside: "Sealed",
+    where: "Sepolia only. Standing a ballot identity up means registering its viewing key with the pool, and that has not been done on mainnet. Sending STRK to a mainnet ballot address loses it.",
   },
   {
     n: "04",
     h: "Wait",
     p: "Nothing is countable from the outside while voting is open. There is no running total to react to, so nobody votes because of what someone else did.",
     aside: "Sealed",
+    where: "Either network.",
   },
   {
     n: "05",
     h: "Tally",
     p: "After the window closes, the tally service reads what each identity received, sums it, and publishes only the aggregate on-chain. Individual ballots never leave it.",
     aside: "Aggregate",
+    where: "Sepolia, where a ballot exists to count. The aggregate published on mainnet was entered by the operator, and the demo says so where it shows it.",
   },
 ];
 
@@ -63,6 +69,14 @@ export default function How() {
       <hr className="rule" />
 
       <section className="shell block">
+        <p className="banner-danger" data-reveal>
+          <strong>Steps 03 and 05 run on {DEPLOYMENTS.sepolia.label}, not on{" "}
+          {DEPLOYMENTS[ACTIVE].label}.</strong>{" "}
+          The contracts and the treasury payouts below are real on mainnet, but
+          no ballot identity is deployed there, so a ballot cast on mainnet would
+          go to an address with no account at it and be lost. Each step says
+          which network it applies to.
+        </p>
         <ol className="steps">
           {STEPS.map((s, i) => (
             <li className="step fade" key={s.n} data-reveal data-delay={i * 70}>
@@ -70,6 +84,7 @@ export default function How() {
               <div className="step-body">
                 <h3>{s.h}</h3>
                 <p className="dim">{s.p}</p>
+                <p className="step-where">{s.where}</p>
               </div>
               <span className="label step-aside">{s.aside}</span>
             </li>

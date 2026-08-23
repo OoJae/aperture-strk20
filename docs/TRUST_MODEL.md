@@ -4,7 +4,8 @@ Aperture is a privacy tool, so the honest statement of what it does **not** hide
 matters as much as what it does. This page is the reference; nothing in the
 README or the demo should claim more than what is written here.
 
-Status: v1 design, written Phase 0. Updated as the implementation lands.
+Status: v1, describing what is deployed today. This is the reference for what
+Aperture claims; the README and the demo must not claim more than it does.
 
 ## Private
 

@@ -25,8 +25,16 @@ const TRUSTED = [
     p: "Nothing proves the operator's sum is the correct one. A second party with the same keys can re-run the count and compare, but that audits the operator against itself.",
   },
   {
+    h: "The discovery service",
+    p: "The tally worker learns which notes arrived by asking an indexer. A dishonest or broken one can under-report, and a tally computed from an incomplete read is wrong in a way nothing on-chain reveals. It is also handed a viewing key in cleartext, so it can read the ballots it is reporting on. docs/TRUST_MODEL.md has named this party from the start; this page did not, which was the more serious omission of the two.",
+  },
+  {
     h: "Refunds",
-    p: "Computed but not executable. Issuing one is a private transfer, which needs a proving service that has not been published. Treat voting as a one-way stake.",
+    p: "Computed but not executable, for two reasons rather than the one usually given. Issuing a refund is a private transfer, which needs a proving service. It also needs a payee, and the tally worker discards the sender of each note when it reads it — so the queue has no recipient recorded even in principle. Treat voting as a one-way stake.",
+  },
+  {
+    h: "Value sent to the anonymizer without a commitment",
+    p: "It is gone. The contract has no sweep, no owner, and no transfer in its token interface: value leaves only as an allowance granted to the pool when a registered commitment is claimed. 14 STRK is permanently locked there today. That is a deliberate trade — immutability with no privileged role, at the cost of no recovery — and it has already cost real money.",
   },
 ];
 

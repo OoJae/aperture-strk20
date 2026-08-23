@@ -1,4 +1,6 @@
 import { Chrome } from "./components/Chrome.tsx";
+import { ACTIVE, scoring } from "@aperture/strk20-governance";
+import { TEST_COUNTS } from "./lib/counts.ts";
 import { REGISTRY_ADDRESS, VOYAGER, shortHex } from "./lib/chain.ts";
 
 export default function Home() {
@@ -27,9 +29,13 @@ export default function Home() {
 
         <div className="hero-foot fade" data-reveal data-delay="380">
           <p>
-            A vote is a private transfer. Nobody sees the choice, the weight, or
-            the voter — not while the vote is open, and not after it closes. The
-            aggregate is the only thing ever published.
+            A vote is a private transfer. No observer sees the choice, the
+            weight, or the voter — not while the vote is open, and not after it
+            closes. The tally operator does: it holds the viewing keys, and that
+            is the trade this design makes.{" "}
+            <a className="link-inline" href="/trust">
+              What we ask you to trust →
+            </a>
           </p>
           <a className="cta" href="/app">
             Open the app
@@ -112,9 +118,15 @@ export default function Home() {
         </p>
         <dl className="facts">
           {[
-            { k: "3", v: "payouts through our own Cairo anonymizer" },
+            {
+              k: String(scoring(ACTIVE).length),
+              v: "payouts through our own Cairo anonymizer",
+            },
             { k: "2", v: "contracts deployed to Starknet mainnet" },
-            { k: "70", v: "tests across Cairo and TypeScript" },
+            {
+              k: String(TEST_COUNTS.total),
+              v: "tests across Cairo and TypeScript",
+            },
           ].map((f, i) => (
             <div className="fact fade" key={f.k} data-reveal data-delay={i * 80}>
               <dt>{f.k}</dt>

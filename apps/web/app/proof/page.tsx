@@ -1,3 +1,10 @@
+import {
+  ACTIVE,
+  DEPLOYMENTS,
+  nonScoring,
+  scoring,
+  txUrl,
+} from "@aperture/strk20-governance";
 import { Chrome } from "../components/Chrome.tsx";
 import {
   ANONYMIZER_ADDRESS,
@@ -8,45 +15,25 @@ import {
 } from "../lib/chain.ts";
 
 /**
- * The record. Every claim on this site should be checkable, so the evidence
- * gets its own page rather than a footnote — including the three transactions
- * that do not count, because hiding those would be the same overclaiming the
- * trust model refuses.
+ * The record.
+ *
+ * Every hash and every address on this page comes from the shared ledger, which
+ * is also what generates strk20.json. They used to be independent literals, and
+ * they drifted: this page filed a transaction under "through our own contracts"
+ * that emits no event from any contract of ours, and three separate files
+ * disagreed about how many payouts had run.
  */
-const SCORED = [
-  {
-    hash: "0x2ee291e2fc083896143f0bb063694b795aa918239cca50fe06021ac32150fb2",
-    what: "Payout through the anonymizer",
-    detail: "Pool withdrew to our contract, called privacy_invoke, value parked against a commitment.",
-  },
-  {
-    hash: "0x31b96770b38847d43631af41813bdc54335e7628f850411e856b07f4e009326",
-    what: "Payout through the anonymizer",
-    detail: "Same path, a second commitment.",
-  },
-  {
-    hash: "0x4ed6e16702fe98bea43e7a26bc54bf76353ab4fa49f9341dc39cf20bd4e390d",
-    what: "Payout through the anonymizer",
-    detail: "Same path, a third commitment.",
-  },
-  {
-    hash: "0x39d820c7b45e7d1752cd7d3171b689437c045d3bd1a5526e5259e49c8faca81",
-    what: "Treasury funded",
-    detail: "Moved value into the anonymizer without invoking it — the shallower of the four.",
-  },
-];
-
-const UNSCORED = [
-  { hash: "0x05331694f88f34223c8c1a5445e449b552dfe2b28c93ae26bb6d5699e8443ec1", what: "Shield" },
-  { hash: "0x02e3cee5560517e9472d977fe11d4c81ddbe0087df6ce2562d4711fe8a28e947", what: "Private transfer" },
-  { hash: "0x020cc7f861d8c455df4b4f84c284ff3dcb96a6f1f94898e95a4a1a2ec919803b", what: "Unshield" },
-];
 
 const CONTRACTS = [
   { name: "ProposalRegistry", address: REGISTRY_ADDRESS },
   { name: "GovernanceAnonymizer", address: ANONYMIZER_ADDRESS },
   { name: "STRK20 pool", address: POOL_ADDRESS },
 ];
+
+const SCORED = scoring(ACTIVE);
+const OTHERS = nonScoring(ACTIVE);
+const POOL_ONLY = OTHERS.filter((e) => e.kind !== "fund-anonymizer");
+const FUNDING = OTHERS.filter((e) => e.kind === "fund-anonymizer");
 
 export default function Proof() {
   return (
@@ -66,8 +53,9 @@ export default function Proof() {
           </span>
         </h1>
         <p className="fade" data-reveal data-delay="220">
-          Contracts on Starknet mainnet, transactions on Voyager. Nothing below
-          asks you to believe a screenshot.
+          Contracts on {DEPLOYMENTS[ACTIVE].label}, transactions on Voyager.
+          Nothing below asks you to believe a screenshot — including the parts
+          that are unflattering.
         </p>
       </section>
 
@@ -98,7 +86,12 @@ export default function Proof() {
 
       <section className="shell block">
         <p className="label" data-reveal>
-          Transactions through our own contracts
+          {SCORED.length} transactions through our own contracts
+        </p>
+        <p className="fade dim" data-reveal data-delay="60">
+          Each of these emits an event from GovernanceAnonymizer, which is what
+          makes it a transaction through Aperture&rsquo;s code rather than one
+          that merely touched the pool.
         </p>
         <ul className="rows plain">
           {SCORED.map((t, i) => (
@@ -107,12 +100,7 @@ export default function Proof() {
                 <strong>{t.what}</strong>
                 <p className="dim">{t.detail}</p>
               </div>
-              <a
-                className="mono dim"
-                href={`${VOYAGER}/tx/${t.hash}`}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a className="mono dim" href={txUrl(t)} target="_blank" rel="noreferrer">
                 {shortHex(t.hash, 10, 6)}
               </a>
             </li>
@@ -124,29 +112,72 @@ export default function Proof() {
 
       <section className="shell block honest">
         <p className="label" data-reveal>
-          And three that do not count
+          And {POOL_ONLY.length + FUNDING.length} that do not
         </p>
         <p className="fade" data-reveal data-delay="80">
-          These touched the pool but ran through nobody&rsquo;s code but the
-          pool&rsquo;s, so the sprint&rsquo;s checker rejects them. They are kept
-          here because a record that only shows the flattering half is not a
-          record.
+          A record that only shows the flattering half is not a record.{" "}
+          {POOL_ONLY.length} of these touched the pool but ran through
+          nobody&rsquo;s code but the pool&rsquo;s.
         </p>
         <ul className="rows plain fade" data-reveal data-delay="140">
-          {UNSCORED.map((t) => (
+          {POOL_ONLY.map((t) => (
             <li className="row" key={t.hash}>
               <span className="dim">{t.what}</span>
-              <a
-                className="mono dim"
-                href={`${VOYAGER}/tx/${t.hash}`}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a className="mono dim" href={txUrl(t)} target="_blank" rel="noreferrer">
                 {shortHex(t.hash, 10, 6)}
               </a>
             </li>
           ))}
         </ul>
+
+        {FUNDING.map((t) => (
+          <div className="fade" key={t.hash} data-reveal data-delay="200">
+            <p className="banner-danger">
+              <strong>{t.what}.</strong> {t.detail} An earlier version of this
+              page listed it under &ldquo;through our own contracts&rdquo; and{" "}
+              <span className="mono">docs/DEPLOYMENTS.md</span> said it counted.
+              Both were wrong, and one RPC call falsifies them:{" "}
+              <a className="mono" href={txUrl(t)} target="_blank" rel="noreferrer">
+                {shortHex(t.hash, 10, 6)}
+              </a>{" "}
+              emits zero events from either of our contracts.
+            </p>
+          </div>
+        ))}
+      </section>
+
+      <hr className="rule" />
+
+      <section className="shell block honest">
+        <p className="label" data-reveal>
+          Value we locked up and cannot get back
+        </p>
+        <p className="fade" data-reveal data-delay="80">
+          GovernanceAnonymizer holds <strong>14 STRK</strong> that nobody can
+          ever move. Six payouts were registered against commitments whose
+          preimages the demo displayed once and never stored, the claim leg has
+          never succeeded on any network, and the contract has no sweep
+          function, no owner, and no <span className="mono">transfer</span> in
+          its token interface. That is not a bug we have yet to fix — it is a
+          property of a contract that cannot be changed after deployment, and it
+          cost real money to learn.
+        </p>
+      </section>
+
+      <hr className="rule" />
+
+      <section className="shell block">
+        <p className="label" data-reveal>
+          Where the vote lifecycle actually runs
+        </p>
+        <p className="fade" data-reveal data-delay="80">
+          On <strong>{DEPLOYMENTS.sepolia.label}</strong>, not here. Three ballot
+          identities are deployed and registered with the pool there, one real
+          sealed ballot was cast, counted, and finalized at 5 STRK for. On{" "}
+          {DEPLOYMENTS[ACTIVE].label} no ballot identity is deployed, so the
+          addresses this site derives are addresses nothing can receive at. The
+          contracts and the payouts are real on mainnet; the voting is not.
+        </p>
       </section>
     </Chrome>
   );

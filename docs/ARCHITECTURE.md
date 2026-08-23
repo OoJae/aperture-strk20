@@ -1,6 +1,8 @@
 # Architecture
 
-Status: Phase 0 outline. Expanded as each piece lands.
+Status: implemented and deployed. Mainnet carries the contracts and the treasury
+payouts; the sealed-vote lifecycle runs on Sepolia. Where this document and the
+code disagree, the code is right and this document is a bug.
 
 ## The idea
 

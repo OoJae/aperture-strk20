@@ -95,15 +95,18 @@ Verified against the docs mirror and the reference implementations on
    worker runs one client per ballot identity. The alternative discovery
    provider is not exported from the published package, so an indexer is
    required.
-9. **No indexer or proving-service URL is published for EITHER network** — not
-   mainnet, not Sepolia. The SDK repo still ships `TODO_MAINNET_INDEXER_URL`,
-   and `ContractDiscoveryProvider` is confirmed absent from the package's
-   exports, so an indexer is mandatory and we do not have one. This gates the
-   whole SDK route. The **wallet route is unaffected**, because the wallet does
-   its own proving and discovery — that is why mainnet transactions are still
-   possible today. Do not guess at endpoints; a wrong proving service fails in
-   ways that look like our bug. Upstream issue #31 raised exactly this and was
-   never answered (self-closed after 13 hours), so do not wait on a reply.
+9. **A mainnet discovery service exists and answers, which this file denied
+   until 2026-08-23.** `https://discovery-service.alpha-mainnet.sw-dev.io`
+   returns a well-formed `IncomingStateResponse` to a real
+   `POST /v1/sync/incoming_state`, echoing the pinned `block_ref` — verified,
+   with the transcript, in `docs/evidence/2026-08-23-indexer-probe.md`. Its
+   Sepolia twin was returning `503 STORAGE_ERROR` at the same moment, which is
+   the inverse of what seven files in this repo assert. The proving service
+   answers `/health` on both networks; that is **not** evidence it will produce
+   a proof, and until one is produced the mainnet lifecycle stays unproven. Do
+   not restate the old claim, and do not upgrade this one beyond what was
+   actually tested.
+
 10. **Calldata placeholders are literal strings.** `"OPEN"`, `"${poolAddress}"`,
     and `"${openNoteIds[0]}"` are substituted by the wallet. Never normalize
     them to hex; only real token and amount values get converted.
@@ -160,8 +163,15 @@ package · `apps/web` demo dapp · `services/tally` server-side tally worker ·
 
 ## Where we are
 
-Phase 0: scaffold, registration, validation questions. Nothing is deployed and
-`strk20.json` is empty.
+Two contracts are live on Starknet mainnet and two on Sepolia; `strk20.json`
+carries ten mainnet transactions, six of them through our own anonymizer; the
+demo is deployed with no login wall. The sealed-vote lifecycle runs end to end
+on Sepolia and has never been run on mainnet.
+
+What is not done: the claim leg reverts with `NON_ZERO_VALUE` on every network,
+refunds are computed but have no payee recorded, and there is no demo video.
+14 STRK is permanently locked in the v1 mainnet anonymizer — see
+`docs/TRUST_MODEL.md`.
 
 ## Definition of done
 
