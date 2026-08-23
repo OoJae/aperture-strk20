@@ -1,103 +1,119 @@
 /**
- * Append a transaction hash to `strk20.json`.
+ * Verify a transaction against the chain and print the ledger entry for it.
  *
- * Run this the moment a hash lands, never in a batch later — `strk20.json` is
- * what the judges' pipeline reads, and a hash that only exists in a terminal
- * scrollback is a hash that does not count.
+ * This used to append a hash straight into strk20.json after a regex check on
+ * its shape, which is how the manifest came to contain a transaction that
+ * emits no event from any contract of ours, filed under a heading that says it
+ * does. Nothing is written blind any more: the receipt is fetched and
+ * classified first, and the output is a ledger entry to paste into
+ * packages/strk20-governance/src/deployments.ts, after which `pnpm sync`
+ * regenerates the manifest.
  *
- *   node scripts/record-tx.ts 0xabc123...
- *   node scripts/record-tx.ts --contract 0xdef456...
- *
- * The organizers verify each hash against mainnet: it must exist, have
- * succeeded, and have emitted at least one event from the STRK20 pool. Only the
- * first ten entries are checked, so ordering matters once the list grows.
+ *   node scripts/record-tx.ts <hash> [--kind payout-register] [--network mainnet]
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import {
+  ACTIVE,
+  DEPLOYMENTS,
+  LEDGER,
+  type NetworkName,
+  type TxKind,
+} from "../packages/strk20-governance/src/deployments.ts";
+import {
+  classifyReceipt,
+  describeVerdict,
+  type RawReceipt,
+} from "../packages/strk20-governance/src/receipt.ts";
 
 const HASH_PATTERN = /^0x[0-9a-fA-F]{1,64}$/;
-const VERIFIED_LIMIT = 10;
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const MANIFEST_PATH = resolve(HERE, "..", "strk20.json");
-
-interface Manifest {
-  transactions: string[];
-  contracts: string[];
-  demo_video: string;
-  demo_url: string;
+function flag(name: string): string | undefined {
+  const i = process.argv.indexOf(`--${name}`);
+  return i === -1 ? undefined : process.argv[i + 1];
 }
 
-function readManifest(): Manifest {
-  const raw = readFileSync(MANIFEST_PATH, "utf8");
-  const parsed = JSON.parse(raw) as Partial<Manifest>;
-  return {
-    transactions: parsed.transactions ?? [],
-    contracts: parsed.contracts ?? [],
-    demo_video: parsed.demo_video ?? "",
-    demo_url: parsed.demo_url ?? "",
-  };
-}
-
-function writeManifest(manifest: Manifest): void {
-  writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
-}
-
-/**
- * Hashes are compared numerically: the same value can be written with or
- * without leading-zero padding, and both refer to one transaction.
- */
-function isSameHash(a: string, b: string): boolean {
-  try {
-    return BigInt(a) === BigInt(b);
-  } catch {
-    return a.toLowerCase() === b.toLowerCase();
+async function main(): Promise<number> {
+  const hash = process.argv[2];
+  if (!hash || hash.startsWith("--")) {
+    console.error("usage: node scripts/record-tx.ts <hash> [--kind <kind>] [--network <network>]");
+    return 2;
   }
-}
-
-function main(argv: string[]): number {
-  const args = argv.slice(2);
-  const isContract = args[0] === "--contract";
-  const value = isContract ? args[1] : args[0];
-  const field = isContract ? "contracts" : "transactions";
-
-  if (!value) {
-    console.error("Usage: node scripts/record-tx.ts [--contract] <0x-hash>");
-    return 1;
+  if (!HASH_PATTERN.test(hash)) {
+    console.error(`Rejected "${hash}": expected 0x followed by 1-64 hex digits.`);
+    return 2;
   }
 
-  if (!HASH_PATTERN.test(value)) {
-    console.error(
-      `Rejected "${value}": expected 0x followed by 1-64 hex digits.`,
-    );
-    return 1;
+  const network = (flag("network") ?? ACTIVE) as NetworkName;
+  const deployment = DEPLOYMENTS[network];
+  if (!deployment) {
+    console.error(`Unknown network "${network}".`);
+    return 2;
   }
 
-  const manifest = readManifest();
-  const existing = manifest[field];
-
-  if (existing.some((entry) => isSameHash(entry, value))) {
-    console.log(`Already recorded in ${field}: ${value}`);
+  if (LEDGER.some((e) => BigInt(e.hash) === BigInt(hash))) {
+    console.log(`Already in the ledger: ${hash}`);
     return 0;
   }
 
-  existing.push(value);
-  writeManifest(manifest);
-
-  console.log(`Recorded in ${field}: ${value}`);
-  console.log(`${field} now holds ${existing.length} entr${existing.length === 1 ? "y" : "ies"}.`);
-
-  if (field === "transactions" && existing.length > VERIFIED_LIMIT) {
-    console.warn(
-      `Only the first ${VERIFIED_LIMIT} transactions are verified by the ` +
-        `organizers; ${existing.length - VERIFIED_LIMIT} entr` +
-        `${existing.length - VERIFIED_LIMIT === 1 ? "y is" : "ies are"} past that cutoff.`,
-    );
+  const rpc = process.env.STRK20_VERIFY_RPC ?? deployment.rpcUrls[0]!;
+  const res = await fetch(rpc, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "starknet_getTransactionReceipt",
+      params: [hash],
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const body = (await res.json()) as { result?: RawReceipt; error?: { message: string } };
+  if (body.error || !body.result) {
+    console.error(`Not found on ${network}: ${body.error?.message ?? "no receipt"}`);
+    return 1;
   }
 
+  const verdict = classifyReceipt(body.result, {
+    pool: deployment.pool,
+    registry: deployment.registry,
+    anonymizer: deployment.anonymizer,
+  });
+
+  console.log(describeVerdict(hash, verdict));
+  if (!verdict.succeeded) {
+    console.error(`\nThis transaction REVERTED${verdict.revertReason ? `: ${verdict.revertReason}` : ""}.`);
+    console.error("Not recording it. A reverted transaction is not evidence of anything working.");
+    return 1;
+  }
+
+  const through =
+    verdict.ourEvents.find((e) => e.role === "anonymizer")
+      ? '"anonymizer"'
+      : verdict.ourEvents.find((e) => e.role === "registry")
+        ? '"registry"'
+        : "null";
+
+  console.log("\nPaste into LEDGER in packages/strk20-governance/src/deployments.ts:\n");
+  console.log(`  {
+    hash: "${hash}",
+    network: "${network}",
+    kind: "${flag("kind") ?? "payout-register"}" as TxKind,
+    block: ${verdict.blockNumber},
+    scores: ${verdict.scores},
+    through: ${through},
+    what: "TODO",
+    detail: "TODO",
+  },`);
+  console.log("\nThen: node scripts/sync-manifest.ts");
+
+  if (!verdict.scores) {
+    console.log(
+      "\nNote: this emits no event from Aperture's own contracts, so it counts " +
+      "for the organisers' checker but not for the claim this project makes " +
+      "about itself. Say so in `detail`.",
+    );
+  }
   return 0;
 }
 
-process.exit(main(process.argv));
+process.exit(await main());

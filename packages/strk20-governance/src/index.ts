@@ -34,3 +34,26 @@ export {
   assertValidViewingKey,
   deriveBallotViewingKey,
 } from "./viewing-key.ts";
+
+export {
+  ACTIVE,
+  DEMO,
+  DEMO_URL,
+  DEMO_VIDEO,
+  DEPLOYMENTS,
+  LEDGER,
+  contractUrl,
+  nonScoring,
+  scoring,
+  txUrl,
+} from "./deployments.ts";
+export type {
+  LedgerEntry,
+  NetworkDeployment,
+  NetworkName,
+  SupersededContract,
+  TxKind,
+} from "./deployments.ts";
+
+export { classifyReceipt, describeVerdict } from "./receipt.ts";
+export type { RawReceipt, ReceiptContext, ReceiptVerdict } from "./receipt.ts";

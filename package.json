@@ -16,7 +16,9 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "ballot-vectors": "node scripts/ballot-vectors.ts",
     "build": "pnpm -r --if-present build",
-    "test": "pnpm -r --if-present test",
+    "test": "node --test scripts/tests/*.test.ts && pnpm -r --if-present test",
+    "sync": "node scripts/sync-manifest.ts",
+    "verify": "node scripts/verify-tx.ts --all",
     "contracts:build": "cd contracts && scarb build",
     "contracts:test": "cd contracts && snforge test",
     "record-tx": "node scripts/record-tx.ts"

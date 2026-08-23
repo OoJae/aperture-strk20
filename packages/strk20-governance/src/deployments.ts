@@ -1,0 +1,311 @@
+/**
+ * Where Aperture is deployed, and every transaction it has produced.
+ *
+ * This file is the only place a contract address, a class hash, an RPC
+ * endpoint, or a transaction hash is written down. `strk20.json`, the demo, the
+ * docs table and the verification scripts are all generated from or read from
+ * here, so they cannot drift apart the way they already did once: the manifest
+ * carried two Sepolia addresses that do not exist on mainnet, `/proof` filed a
+ * transaction under a heading it does not belong to, and three separate files
+ * disagreed about how many payouts had run.
+ *
+ * Repointing to a new deployment is editing this file and running `pnpm sync`.
+ */
+
+export type NetworkName = "mainnet" | "sepolia";
+
+export interface SupersededContract {
+  readonly address: string;
+  readonly role: string;
+  /** Why it was replaced, in a sentence a stranger can act on. */
+  readonly why: string;
+}
+
+export interface NetworkDeployment {
+  readonly chainId: "SN_MAIN" | "SN_SEPOLIA";
+  readonly label: string;
+  readonly explorer: string;
+  /**
+   * Keyless public endpoints, tried in order. A static bundle cannot hold a
+   * key, so these are the honest options; the fallback exists because a single
+   * free endpoint rate-limiting during judging is a real failure mode.
+   */
+  readonly rpcUrls: readonly string[];
+  readonly pool: string;
+  readonly strkToken: string;
+  readonly registry: string;
+  readonly anonymizer: string;
+  readonly registryClassHash: string;
+  readonly anonymizerClassHash: string;
+  readonly ballotAccountClassHash: string;
+  readonly daoMasterPublicKey: string;
+  readonly deployedAt: string;
+  readonly contractVersion: "v1" | "v2";
+  /**
+   * A published discovery service for this network, or null. Verified by a real
+   * POST to /v1/sync/incoming_state, not by a health route — see
+   * docs/evidence/2026-08-23-indexer-probe.md.
+   */
+  readonly indexerUrl: string | null;
+  readonly provingServiceUrl: string | null;
+  /**
+   * Whether this network's ballot identities are deployed AND registered with
+   * the pool. When false, the derived ballot addresses are addresses nobody can
+   * receive at, and the demo must say so rather than offering them.
+   */
+  readonly ballotIdentitiesLive: boolean;
+  readonly superseded?: readonly SupersededContract[];
+}
+
+export type TxKind =
+  | "shield"
+  | "private-transfer"
+  | "unshield"
+  | "fund-anonymizer"
+  | "payout-register"
+  | "payout-claim"
+  | "ballot-register"
+  | "ballot-cast"
+  | "finalize"
+  | "deploy";
+
+export interface LedgerEntry {
+  readonly hash: string;
+  readonly network: NetworkName;
+  readonly kind: TxKind;
+  readonly block: number;
+  /**
+   * Verified: the receipt SUCCEEDED and carries at least one event from one of
+   * Aperture's own contracts. This is the rule docs/DEPLOYMENTS.md states, and
+   * it is stricter than the organisers' checker, which looks only for a pool
+   * event. Both verdicts are reported; see receipt.ts.
+   */
+  readonly scores: boolean;
+  readonly through: "anonymizer" | "registry" | null;
+  readonly what: string;
+  readonly detail: string;
+}
+
+/** The network the demo reads and the manifest describes. */
+export const ACTIVE: NetworkName = "mainnet";
+
+export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
+  mainnet: {
+    chainId: "SN_MAIN",
+    label: "Starknet mainnet",
+    explorer: "https://voyager.online",
+    rpcUrls: [
+      "https://starknet-rpc.publicnode.com",
+      "https://rpc.starknet.lava.build",
+    ],
+    pool: "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
+    strkToken:
+      "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+    registry:
+      "0x0371e11c7cae61bc2fd5ce6b75153d59746ecf2d88b286be6ebe9c7c001e330c",
+    anonymizer:
+      "0x05cc31d13d5901347d009f70f59abacb22b76e84963286004b67bf4644546890",
+    registryClassHash:
+      "0x05ce106206f1ec3dfefd12dccfc3722b32fe7a0bd77b1c76c8f4947096d5ea1e",
+    anonymizerClassHash:
+      "0x05c37265083181d3669f096b0a594ead9725b75ff4a413dae007c8ddab818a37",
+    ballotAccountClassHash:
+      "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
+    daoMasterPublicKey:
+      "0x660a41ee3edd08bd84276775ea1bed419f38ed8fe7bf4c07b522c3513a73e42",
+    deployedAt: "2026-08-17",
+    contractVersion: "v1",
+    indexerUrl: "https://discovery-service.alpha-mainnet.sw-dev.io",
+    provingServiceUrl: "https://transaction-prover.alpha-mainnet.sw-dev.io",
+    ballotIdentitiesLive: false,
+  },
+  sepolia: {
+    chainId: "SN_SEPOLIA",
+    label: "Starknet Sepolia",
+    explorer: "https://sepolia.voyager.online",
+    rpcUrls: ["https://free-rpc.nethermind.io/sepolia-juno"],
+    pool: "0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
+    strkToken:
+      "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+    registry:
+      "0x01432bc68815695d4be3300cb29085aa916c97c11b7eb04e27ae9b84ad82b64f",
+    anonymizer:
+      "0x00533fedd104a3dd4097a6ad58f9a5637553f1a83f976867866cb60c02d7466d",
+    registryClassHash:
+      "0x05ce106206f1ec3dfefd12dccfc3722b32fe7a0bd77b1c76c8f4947096d5ea1e",
+    anonymizerClassHash:
+      "0x05c37265083181d3669f096b0a594ead9725b75ff4a413dae007c8ddab818a37",
+    ballotAccountClassHash:
+      "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
+    daoMasterPublicKey:
+      "0x660a41ee3edd08bd84276775ea1bed419f38ed8fe7bf4c07b522c3513a73e42",
+    deployedAt: "2026-08-17",
+    contractVersion: "v1",
+    indexerUrl: "https://discovery-service.alpha-sepolia.sw-dev.io",
+    provingServiceUrl: "https://transaction-prover.alpha-sepolia.sw-dev.io",
+    ballotIdentitiesLive: true,
+    superseded: [
+      {
+        address:
+          "0x045c7c6d4bbea680dadd7ea248ec793d84ad55f3d381be7c5710b12c900e1cf9",
+        role: "ProposalRegistry",
+        why:
+          "Constructed with the Argent account class, whose constructor takes " +
+          "[0, pubkey, 1] while the derivation passes [pubkey]. Every ballot " +
+          "address it published was one no account could be deployed at. The " +
+          "Sepolia anonymizer still points at it, because that pointer is " +
+          "write-once.",
+      },
+    ],
+  },
+};
+
+/**
+ * Every transaction Aperture has produced, oldest first.
+ *
+ * `scores` is not a judgement call — each entry was checked against the chain
+ * with `node scripts/record-tx.ts`, which refuses to print an entry it has not
+ * verified.
+ */
+export const LEDGER: readonly LedgerEntry[] = [
+  {
+    hash: "0x05331694f88f34223c8c1a5445e449b552dfe2b28c93ae26bb6d5699e8443ec1",
+    network: "mainnet",
+    kind: "shield",
+    block: 13395123,
+    scores: false,
+    through: null,
+    what: "Shield",
+    detail:
+      "A real pool deposit, but it ran through nobody's code but the pool's, " +
+      "so it is not integration depth. Kept because a record that shows only " +
+      "the flattering half is not a record.",
+  },
+  {
+    hash: "0x02e3cee5560517e9472d977fe11d4c81ddbe0087df6ce2562d4711fe8a28e947",
+    network: "mainnet",
+    kind: "private-transfer",
+    block: 13395275,
+    scores: false,
+    through: null,
+    what: "Private transfer",
+    detail: "Pool-only, same as above.",
+  },
+  {
+    hash: "0x020cc7f861d8c455df4b4f84c284ff3dcb96a6f1f94898e95a4a1a2ec919803b",
+    network: "mainnet",
+    kind: "unshield",
+    block: 13395339,
+    scores: false,
+    through: null,
+    what: "Unshield",
+    detail: "Pool-only, same as above.",
+  },
+  {
+    hash: "0x2ee291e2fc083896143f0bb063694b795aa918239cca50fe06021ac32150fb2",
+    network: "mainnet",
+    kind: "payout-register",
+    block: 13540620,
+    scores: true,
+    through: "anonymizer",
+    what: "Payout through the anonymizer",
+    detail:
+      "The pool withdrew to GovernanceAnonymizer and called its privacy_invoke, " +
+      "which parked the value against a commitment only a preimage can open. " +
+      "Emits PayoutRegistered.",
+  },
+  {
+    hash: "0x716932a91cb1730fde259d98e44866be67026ff97ae311d8acc83f124c3c747",
+    network: "mainnet",
+    kind: "payout-register",
+    block: 13548604,
+    scores: true,
+    through: "anonymizer",
+    what: "Payout through the anonymizer",
+    detail: "Same path, a second commitment.",
+  },
+  {
+    hash: "0x39e4cdf6a3b4967e93ef83abf62170ecd4be8788b45bfcfd37fcb1e5178fae4",
+    network: "mainnet",
+    kind: "payout-register",
+    block: 13548731,
+    scores: true,
+    through: "anonymizer",
+    what: "Payout through the anonymizer",
+    detail: "Same path, a third commitment.",
+  },
+  {
+    hash: "0x416bece5747c6ca3b25efd3ad5c868109c4e5413b734c438b15550f33932e51",
+    network: "mainnet",
+    kind: "payout-register",
+    block: 13598229,
+    scores: true,
+    through: "anonymizer",
+    what: "Payout through the anonymizer",
+    detail: "Same path, a fourth commitment.",
+  },
+  {
+    hash: "0x39d820c7b45e7d1752cd7d3171b689437c045d3bd1a5526e5259e49c8faca81",
+    network: "mainnet",
+    kind: "fund-anonymizer",
+    block: 13599878,
+    scores: false,
+    through: null,
+    what: "Treasury funded, nothing invoked",
+    detail:
+      "A pool withdrawal whose recipient happened to be our anonymizer. It " +
+      "emits zero events from our contracts, so it does not run through our " +
+      "code by any reading, and docs/DEPLOYMENTS.md was wrong to say it " +
+      "counted. This is also the transaction that stranded value in a " +
+      "contract with no way to get it out.",
+  },
+  {
+    hash: "0x31b96770b38847d43631af41813bdc54335e7628f850411e856b07f4e009326",
+    network: "mainnet",
+    kind: "payout-register",
+    block: 13604075,
+    scores: true,
+    through: "anonymizer",
+    what: "Payout through the anonymizer",
+    detail: "Same path, a fifth commitment.",
+  },
+  {
+    hash: "0x4ed6e16702fe98bea43e7a26bc54bf76353ab4fa49f9341dc39cf20bd4e390d",
+    network: "mainnet",
+    kind: "payout-register",
+    block: 13604429,
+    scores: true,
+    through: "anonymizer",
+    what: "Payout through the anonymizer",
+    detail: "Same path, a sixth commitment.",
+  },
+];
+
+export const DEMO_URL = "https://aperture-strk20.vercel.app";
+
+/** Empty until one exists. Never fill this in speculatively. */
+export const DEMO_VIDEO = "";
+
+/**
+ * The demo's payout parameters, in one place so the calldata and the visible
+ * copy cannot disagree. They were independent literals once, which is exactly
+ * how a button ends up promising something the transaction does not do.
+ */
+export const DEMO = {
+  payoutProposalId: 2n,
+  payoutAmount: 2n * 10n ** 18n,
+} as const;
+
+export const scoring = (network: NetworkName = ACTIVE): readonly LedgerEntry[] =>
+  LEDGER.filter((e) => e.network === network && e.scores);
+
+export const nonScoring = (
+  network: NetworkName = ACTIVE,
+): readonly LedgerEntry[] =>
+  LEDGER.filter((e) => e.network === network && !e.scores);
+
+export const txUrl = (entry: LedgerEntry): string =>
+  `${DEPLOYMENTS[entry.network].explorer}/tx/${entry.hash}`;
+
+export const contractUrl = (network: NetworkName, address: string): string =>
+  `${DEPLOYMENTS[network].explorer}/contract/${address}`;
