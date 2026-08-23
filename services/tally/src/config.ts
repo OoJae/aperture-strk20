@@ -25,7 +25,7 @@ import { ec } from "starknet";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertValidViewingKey } from "@aperture/strk20-governance";
+import { assertValidViewingKey } from "@oojae/strk20-governance";
 import { ENV_SPEC, requiredFor, type EnvVarSpec } from "./env-spec.ts";
 
 /**

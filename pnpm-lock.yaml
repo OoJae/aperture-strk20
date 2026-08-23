@@ -21,7 +21,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@aperture/strk20-governance':
+      '@oojae/strk20-governance':
         specifier: workspace:*
         version: link:../../packages/strk20-governance
       '@starknet-io/get-starknet-discovery':
@@ -80,7 +80,7 @@ importers:
 
   services/tally:
     dependencies:
-      '@aperture/strk20-governance':
+      '@oojae/strk20-governance':
         specifier: workspace:*
         version: link:../../packages/strk20-governance
       '@starkware-libs/starknet-privacy-sdk':

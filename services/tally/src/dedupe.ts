@@ -13,7 +13,7 @@
  * not to pick a winner.
  */
 
-import type { BallotIdentity } from "@aperture/strk20-governance";
+import type { BallotIdentity } from "@oojae/strk20-governance";
 import type { DiscoveredNote } from "./discovery.ts";
 
 export class DuplicateNoteError extends Error {

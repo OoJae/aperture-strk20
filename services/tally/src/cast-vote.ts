@@ -19,9 +19,9 @@ import {
   SimplePrivateTransfersImpl,
   createPrivateTransfers,
 } from "@starkware-libs/starknet-privacy-sdk";
-import { deriveBallotIdentity } from "@aperture/strk20-governance";
-import { parseTokenAmount } from "@aperture/strk20-governance";
-import type { Choice } from "@aperture/strk20-governance";
+import { deriveBallotIdentity } from "@oojae/strk20-governance";
+import { parseTokenAmount } from "@oojae/strk20-governance";
+import type { Choice } from "@oojae/strk20-governance";
 import { loadConfig } from "./config.ts";
 import { ensurePoolAllowance } from "./pool-allowance.ts";
 import { readBallotDomain } from "./registry.ts";

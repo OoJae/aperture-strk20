@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   output: "export",
 
   /** The shared package ships TypeScript source rather than a build. */
-  transpilePackages: ["@aperture/strk20-governance"],
+  transpilePackages: ["@oojae/strk20-governance"],
 
   images: { unoptimized: true },
 };

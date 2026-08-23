@@ -58,6 +58,7 @@ interface Face {
 function parse(css: string): Face[] {
   const faces: Face[] = [];
   for (const [, body] of css.matchAll(/@font-face\s*\{(.*?)\}/gs)) {
+    if (body === undefined) continue;
     const family = body.match(/font-family:\s*'([^']+)'/)?.[1];
     const style = body.match(/font-style:\s*(\w+)/)?.[1];
     const weight = body.match(/font-weight:\s*(\d+)/)?.[1];

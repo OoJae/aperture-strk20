@@ -13,7 +13,7 @@
     "test": "node --test tests/*.test.ts"
   },
   "dependencies": {
-    "@aperture/strk20-governance": "workspace:*",
+    "@oojae/strk20-governance": "workspace:*",
     "@starkware-libs/starknet-privacy-sdk": "0.14.3-rc.5",
     "starknet": "^10.4.0"
   },

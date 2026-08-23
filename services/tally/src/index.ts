@@ -11,7 +11,7 @@
  */
 
 import { RpcProvider } from "starknet";
-import { willPass } from "@aperture/strk20-governance";
+import { willPass } from "@oojae/strk20-governance";
 import { loadConfig } from "./config.ts";
 import { ReorgedError, checkIndexerHealth } from "./discovery.ts";
 import { finalizeProposal, type Provenance } from "./finalize.ts";

@@ -20,7 +20,7 @@ import {
   CHOICES,
   deriveBallotIdentity,
   deriveBallotViewingKey,
-} from "@aperture/strk20-governance";
+} from "@oojae/strk20-governance";
 import { loadConfig } from "./config.ts";
 import { describeError } from "./report-error.ts";
 import { ensurePoolAllowance } from "./pool-allowance.ts";

@@ -1,5 +1,5 @@
 import { Chrome } from "./components/Chrome.tsx";
-import { ACTIVE, scoring } from "@aperture/strk20-governance";
+import { ACTIVE, scoring } from "@oojae/strk20-governance";
 import { TEST_COUNTS } from "./lib/counts.ts";
 import { REGISTRY_ADDRESS, VOYAGER, shortHex } from "./lib/chain.ts";
 

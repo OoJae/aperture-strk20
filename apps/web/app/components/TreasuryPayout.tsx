@@ -21,7 +21,7 @@
 import { useEffect, useRef, useState } from "react";
 import { hash, num, shortString } from "starknet";
 import { walletV6 } from "starknet";
-import { DEMO, classifyReceipt, mintPayout } from "@aperture/strk20-governance";
+import { DEMO, classifyReceipt, mintPayout } from "@oojae/strk20-governance";
 import {
   ANONYMIZER_ADDRESS,
   DEPLOYMENT,

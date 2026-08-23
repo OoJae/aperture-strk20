@@ -10,8 +10,8 @@
  */
 
 import { Account, CallData, RpcProvider } from "starknet";
-import { U128_MAX, U64_MAX, assertFits } from "@aperture/strk20-governance";
-import type { TallyResult } from "@aperture/strk20-governance";
+import { U128_MAX, U64_MAX, assertFits } from "@oojae/strk20-governance";
+import type { TallyResult } from "@oojae/strk20-governance";
 import type { TallyConfig } from "./config.ts";
 import type { ProposalWindow } from "./registry.ts";
 import type { TallyRun } from "./tally.ts";

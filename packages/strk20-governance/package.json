@@ -1,18 +1,68 @@
 {
-  "name": "@aperture/strk20-governance",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Sealed-ballot governance primitives for the STRK20 shielded pool.",
+  "name": "@oojae/strk20-governance",
+  "version": "0.1.0",
+  "description": "Sealed-ballot governance primitives for the STRK20 shielded pool on Starknet.",
+  "keywords": [
+    "starknet",
+    "strk20",
+    "governance",
+    "dao",
+    "privacy",
+    "voting",
+    "cairo"
+  ],
   "license": "MIT",
+  "author": "OoJae",
+  "homepage": "https://github.com/OoJae/aperture-strk20#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OoJae/aperture-strk20.git",
+    "directory": "packages/strk20-governance"
+  },
+  "bugs": {
+    "url": "https://github.com/OoJae/aperture-strk20/issues"
+  },
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
-    "node": ">=24"
+    "node": ">=22"
+  },
+  "//": [
+    "main and types point at TypeScript source, which is what the workspace",
+    "consumes \u2014 apps/web transpiles it and the tally service runs it directly,",
+    "so there is no build step between editing a helper and running a tally.",
+    "",
+    "publishConfig overrides both at publish time, so what goes to the registry",
+    "is compiled JavaScript with declarations. Consumers never see .ts source",
+    "they would have to configure a toolchain to read.",
+    "",
+    "src ships alongside dist because the emitted sourcemaps point at it. Maps that resolve to files nobody has are worse than no maps: a consumer's debugger shows a path and then an empty pane. Nothing resolves to src \u2014 publishConfig points main, types and exports at dist \u2014 so it is there to be read, not to be loaded."
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.ts"
+    "test": "node --test tests/*.test.ts",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "starknet": "^10.4.0"

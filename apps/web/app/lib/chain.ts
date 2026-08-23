@@ -12,7 +12,7 @@
  */
 
 import { RpcProvider, num, shortString } from "starknet";
-import { ACTIVE, DEPLOYMENTS, ballotDomain } from "@aperture/strk20-governance";
+import { ACTIVE, DEPLOYMENTS, ballotDomain } from "@oojae/strk20-governance";
 
 export const DEPLOYMENT = DEPLOYMENTS[ACTIVE];
 

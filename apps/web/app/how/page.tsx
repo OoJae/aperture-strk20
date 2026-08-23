@@ -1,4 +1,4 @@
-import { ACTIVE, DEPLOYMENTS } from "@aperture/strk20-governance";
+import { ACTIVE, DEPLOYMENTS } from "@oojae/strk20-governance";
 import { Chrome } from "../components/Chrome.tsx";
 
 /**

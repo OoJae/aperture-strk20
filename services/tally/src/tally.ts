@@ -13,12 +13,12 @@ import {
   aggregateNotes,
   deriveBallotIdentities,
   deriveBallotViewingKey,
-} from "@aperture/strk20-governance";
+} from "@oojae/strk20-governance";
 import type {
   BallotIdentity,
   BallotNote,
   TallyResult,
-} from "@aperture/strk20-governance";
+} from "@oojae/strk20-governance";
 import type { TallyConfig } from "./config.ts";
 import { dedupeAcrossIdentities } from "./dedupe.ts";
 import { discoverReceivedNotes } from "./discovery.ts";

@@ -17,13 +17,13 @@
 import { Account, RpcProvider } from "starknet";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { mintPayout, parseTokenAmount } from "@aperture/strk20-governance";
+import { mintPayout, parseTokenAmount } from "@oojae/strk20-governance";
 import { Open, createPrivateTransfers } from "@starkware-libs/starknet-privacy-sdk";
 import { loadConfig } from "./config.ts";
 
 const MATURITY_BLOCKS = 10;
 
-// The tag and the commitment live in @aperture/strk20-governance, pinned
+// The tag and the commitment live in @oojae/strk20-governance, pinned
 // against Cairo by a vector test. They were duplicated in four places and
 // nothing compared them.
 

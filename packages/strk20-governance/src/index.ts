@@ -1,5 +1,5 @@
 /**
- * `@aperture/strk20-governance` — sealed-ballot governance on the STRK20
+ * `@oojae/strk20-governance` — sealed-ballot governance on the STRK20
  * shielded pool.
  *
  * A vote is a private transfer into a per-choice receiving identity. Nobody can

@@ -30,7 +30,7 @@ const felt = (value: string | bigint): string => num.toHex(BigInt(value));
 /** Mirrors GovernanceOperation in contracts/src/governance_anonymizer.cairo. */
 export const OP_REGISTER_PAYOUT = "0x0";
 
-// The payout tag and the commitment live in @aperture/strk20-governance now.
+// The payout tag and the commitment live in @oojae/strk20-governance now.
 // They used to be duplicated here, in TreasuryPayout, in the tally worker and
 // in Cairo — four implementations, no test comparing any two. When v2 changed
 // the preimage, three of them kept computing the old hash and kept compiling.

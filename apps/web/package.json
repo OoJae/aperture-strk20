@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@aperture/strk20-governance": "workspace:*",
+    "@oojae/strk20-governance": "workspace:*",
     "@starknet-io/get-starknet-discovery": "6.0.2",
     "@starknet-io/get-starknet-wallet-standard": "6.0.2",
     "lenis": "^1.3.26",

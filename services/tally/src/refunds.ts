@@ -13,7 +13,7 @@
  * not a footnote.
  */
 
-import type { Choice } from "@aperture/strk20-governance";
+import type { Choice } from "@oojae/strk20-governance";
 import type { DiscoveredForIdentity } from "./dedupe.ts";
 
 /** One ballot owed back to its sender. */

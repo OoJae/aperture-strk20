@@ -4,7 +4,7 @@ import {
   nonScoring,
   scoring,
   txUrl,
-} from "@aperture/strk20-governance";
+} from "@oojae/strk20-governance";
 import { Chrome } from "../components/Chrome.tsx";
 import {
   ANONYMIZER_ADDRESS,

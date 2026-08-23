@@ -9,7 +9,7 @@
  * open.
  */
 
-import { willPass } from "@aperture/strk20-governance";
+import { willPass } from "@oojae/strk20-governance";
 import {
   DEPLOYMENT,
   REGISTRY_ADDRESS,

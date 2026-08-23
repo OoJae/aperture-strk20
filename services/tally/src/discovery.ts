@@ -25,7 +25,7 @@
  * while proving infrastructure remains unpublished.
  */
 
-import type { BallotIdentity, BallotNote } from "@aperture/strk20-governance";
+import type { BallotIdentity, BallotNote } from "@oojae/strk20-governance";
 
 /** Raised when the pinned block is reorged out from under an enumeration. */
 export class ReorgedError extends Error {

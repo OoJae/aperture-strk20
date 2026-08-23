@@ -15,8 +15,8 @@
  * is anything actually deployed and registered there.
  */
 
-import { CHOICES, deriveBallotIdentity } from "@aperture/strk20-governance";
-import type { Choice } from "@aperture/strk20-governance";
+import { CHOICES, deriveBallotIdentity } from "@oojae/strk20-governance";
+import type { Choice } from "@oojae/strk20-governance";
 import {
   BALLOT_CONFIG,
   DEPLOYMENT,
