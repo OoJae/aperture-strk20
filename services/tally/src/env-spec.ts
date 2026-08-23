@@ -138,6 +138,17 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     description: "ProposalRegistry on the selected network. See docs/DEPLOYMENTS.md.",
   },
   {
+    name: "APERTURE_PAYOUT_DIR",
+    requirement: "optional",
+    secret: false,
+    group: "Aperture contracts",
+    description:
+      "Where payout preimages are written before a register transaction is " +
+      "submitted. Defaults to .payouts/, which is gitignored. A preimage is " +
+      "the only thing that can ever open an escrowed payout, and the " +
+      "anonymizer has no sweep, so losing one strands the value permanently.",
+  },
+  {
     name: "APERTURE_ANONYMIZER_ADDRESS",
     requirement: "optional",
     secret: false,

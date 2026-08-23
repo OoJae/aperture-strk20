@@ -164,23 +164,54 @@ function assertKeyPair(privateKey: string, publicKey: string): void {
 }
 
 /**
- * Four roles must be four keys.
+ * Report where the key roles are still sharing a value.
  *
- * Pasting one value into every field reproduces exactly the blast radius this
- * split exists to remove, and it would do so silently.
+ * This started life as a hard assert requiring all four roles to differ, which
+ * was wrong in a way worth recording: a viewing key belongs to a pool *account*,
+ * not to a job. `cast-vote` and `payout-lifecycle` both act as
+ * `operatorAddress`, and the pool stores one key per address, so VOTER_ and
+ * TALLY_OPERATOR_VIEWING_KEY are two names for one account's key and must be
+ * equal until the voter is a separate account. The assert would have refused the
+ * only configuration that works.
+ *
+ * What is genuinely dangerous is narrower: the seed that derives every ballot
+ * viewing key should not also be a key handed to a third-party indexer. On this
+ * deployment it is, unavoidably — the operator's registered pool key *is* that
+ * scalar, and re-registering would strand the notes encrypted to it. v2
+ * re-derives every ballot address and re-registers every viewing key, and that
+ * is where the roles genuinely separate.
+ *
+ * So: warn, precisely, and say when it stops being true. Silence would let a
+ * real future coupling pass unnoticed; a hard failure would be a lie about what
+ * this deployment can express.
  */
-function assertDistinct(roles: Record<string, bigint | undefined>): void {
-  const seen = new Map<bigint, string>();
+function reportKeyCoupling(roles: Record<string, bigint | undefined>): void {
+  const byValue = new Map<bigint, string[]>();
   for (const [name, value] of Object.entries(roles)) {
     if (value === undefined) continue;
-    const prior = seen.get(value);
-    if (prior) {
-      throw new TypeError(
-        `${name} and ${prior} must be different keys. They do different jobs, ` +
-          `and two of those jobs disclose the key to the indexer in cleartext.`,
-      );
-    }
-    seen.set(value, name);
+    byValue.set(value, [...(byValue.get(value) ?? []), name]);
+  }
+
+  for (const names of byValue.values()) {
+    if (names.length < 2) continue;
+
+    // Two names for one pool account's key is correct, not a finding.
+    const isSameAccountViewingKey =
+      names.length === 2 &&
+      names.includes("VOTER_VIEWING_KEY") &&
+      names.includes("TALLY_OPERATOR_VIEWING_KEY");
+    if (isSameAccountViewingKey) continue;
+
+    console.warn(
+      `[config] ${names.join(" and ")} hold the same value.\n` +
+        `         Expected on this deployment: the ballot identities and the\n` +
+        `         operator's pool registration were both created from one\n` +
+        `         scalar, and changing either now would make existing notes\n` +
+        `         unreadable. It does mean a key derived from the seed is also\n` +
+        `         disclosed to the indexer.\n` +
+        `         v2 re-derives and re-registers everything, which is where\n` +
+        `         these separate for real. See docs/TRUST_MODEL.md.`,
+    );
   }
 }
 
@@ -224,8 +255,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): TallyConfig {
   if (voterViewingKey !== undefined) assertValidViewingKey(voterViewingKey);
   if (operatorViewingKey !== undefined) assertValidViewingKey(operatorViewingKey);
 
-  assertDistinct({
+  reportKeyCoupling({
     DAO_BALLOT_VIEWING_SEED: ballotViewingSeed,
+    DAO_BALLOT_ACCOUNT_PRIVATE_KEY: (() => {
+      try {
+        return BigInt(ballotAccountPrivateKey);
+      } catch {
+        return undefined;
+      }
+    })(),
     VOTER_VIEWING_KEY: voterViewingKey,
     TALLY_OPERATOR_VIEWING_KEY: operatorViewingKey,
   });

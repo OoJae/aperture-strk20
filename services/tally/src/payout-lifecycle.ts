@@ -15,6 +15,8 @@
  */
 
 import { Account, RpcProvider } from "starknet";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { parseTokenAmount } from "@aperture/strk20-governance";
 import { Open, createPrivateTransfers } from "@starkware-libs/starknet-privacy-sdk";
 import { loadConfig } from "./config.ts";
@@ -68,6 +70,38 @@ async function main(argv: string[]): Promise<number> {
     secret,
   ]);
 
+  // Written to disk BEFORE anything is submitted.
+  //
+  // A run that registers a payout and then dies has escrowed value against a
+  // commitment only this preimage can open, and an anonymizer with no sweep
+  // cannot return it. That is not hypothetical: it is how 14 STRK was lost on
+  // mainnet, and how another 0.5 STRK was lost on Sepolia during the very
+  // investigation into why. Printing it at the end is too late.
+  const ticketPath = resolve(
+    process.env.APERTURE_PAYOUT_DIR ?? ".payouts",
+    `${config.network}-${commitment.slice(0, 18)}.json`,
+  );
+  mkdirSync(dirname(ticketPath), { recursive: true });
+  writeFileSync(
+    ticketPath,
+    `${JSON.stringify(
+      {
+        network: config.network,
+        anonymizer,
+        proposalId: proposalId.toString(),
+        token,
+        amount: amount.toString(),
+        commitment,
+        secret,
+        createdAtBlock: await provider.getBlockNumber(),
+      },
+      null,
+      2,
+    )}\n`,
+    { mode: 0o600 },
+  );
+  console.log(`  preimage saved to ${ticketPath} (gitignored, chmod 600)`);
+
   console.log(`Payout of ${amountArg} STRK against proposal ${proposalId}`);
   console.log(`  anonymizer: ${anonymizer}`);
   console.log(`  commitment: ${commitment}\n`);
@@ -98,15 +132,46 @@ async function main(argv: string[]): Promise<number> {
       ? { proofFacts: callAndProof.proof.proofFacts, proof: callAndProof.proof.data }
       : {};
     const tx = await account.execute(callAndProof.call, { tip: 0n, ...details } as never);
-    await provider.waitForTransaction(tx.transaction_hash);
+    const receipt = await provider.waitForTransaction(tx.transaction_hash);
+    const status = (receipt as { execution_status?: string }).execution_status;
+    if (status === "REVERTED") {
+      const reason = (receipt as { revert_reason?: string }).revert_reason ?? "(no reason given)";
+      throw new Error(
+        `${tx.transaction_hash} REVERTED: ${reason}\n` +
+          `A reverted pool transaction still costs the flat fee. See ` +
+          `docs/evidence/2026-08-23-claim-leg-diagnosis.md for how to read these.`,
+      );
+    }
     return tx.transaction_hash;
   };
 
   /**
-   * The two legs need different builders. Register spends a note and must say
-   * where the change goes; claim spends nothing at all — it only creates an
-   * empty open note for the helper to fill, so selecting notes or routing
-   * surplus into it makes the pool reject the note as non-empty.
+   * The two legs need different builders.
+   *
+   * Register spends a note and must say where the change goes. Claim spends
+   * nothing — it only creates an empty open note for the helper to fill.
+   *
+   * Both legs must read a block that already contains the other's writes, and
+   * that is what `waitForPin` below enforces. A note id is
+   * `poseidon(tag, channel_key, token, index)` with no block and no randomness
+   * in it, and `index` is the indexer's `last_note_index + 1` evaluated at
+   * whatever block the SDK is proving against — the SDK forwards
+   * `provingBlockId` into discovery, there being no separate discovery block.
+   *
+   * The original code computed `head - 10` independently for each leg. The
+   * claim leg ran seconds after the register transaction landed, so its pin
+   * still pointed before it, the indexer returned the pre-register index, and
+   * the open note targeted the slot the register leg's surplus note had just
+   * filled. The pool's WriteOnce asserts that slot is zero, and reverted with
+   * NON_ZERO_VALUE.
+   *
+   * Threading the register leg's returned registry instead — it is advanced
+   * optimistically at compile time — removed NON_ZERO_VALUE and produced
+   * INDEX_NOT_SEQUENTIAL instead: an index past what the pool would accept.
+   * Waiting for the pin is the fix that matches how the pool actually works,
+   * rather than one that races it.
+   *
+   * Full working: docs/evidence/2026-08-23-claim-leg-diagnosis.md
    */
   const build = (spends: boolean) => {
     const b = (transfers as never as {
@@ -118,7 +183,13 @@ async function main(argv: string[]): Promise<number> {
             autoDiscover: { notes: "refresh", channels: "refresh" },
             autoSelectNotes: "naive",
           }
-        : { autoSetup: true, autoDiscover: { notes: "refresh", channels: "refresh" } },
+        : {
+            autoSetup: true,
+            // Re-reading channels is correct — as long as the block being read
+            // is past the register transaction. See waitForPin below, which is
+            // the part that was missing.
+            autoDiscover: { channels: "refresh" },
+          },
     );
     return (spends ? (b.surplusTo as (a: string) => typeof b)(config.operatorAddress) : b) as never as {
       with: (t: string, ops: (b: unknown) => void) => {
@@ -129,10 +200,38 @@ async function main(argv: string[]): Promise<number> {
 
   const settledBlock = async () => (await provider.getBlockNumber()) - MATURITY_BLOCKS;
 
+  const blockOf = async (txHash: string): Promise<number> => {
+    const receipt = (await provider.getTransactionReceipt(txHash)) as { block_number?: number };
+    if (typeof receipt.block_number !== "number") {
+      throw new Error(`${txHash} has no block number yet; refusing to pin against it.`);
+    }
+    return receipt.block_number;
+  };
+
+  /**
+   * Block until the settled pin has caught up past `target`.
+   *
+   * This is the whole fix. Discovery and proving share one block parameter, so
+   * a pin chosen before a transaction it depends on silently reads pre-transaction
+   * state — and the symptom is a pool revert that names a storage slot, not a
+   * stale read.
+   */
+  const waitForPin = async (target: number): Promise<void> => {
+    for (;;) {
+      const pin = await settledBlock();
+      if (pin >= target) {
+        console.log(`   pin ${pin} is past block ${target}; safe to read.\n`);
+        return;
+      }
+      console.log(`   waiting: pin ${pin} is still behind block ${target} (${target - pin} to go)…`);
+      await new Promise((resolve) => setTimeout(resolve, 15_000));
+    }
+  };
+
   // 1. Register — the pool withdraws to the helper, which parks the value
   //    against the commitment and returns an empty span.
   console.log("1. Registering the payout (pool -> our anonymizer)");
-  const registerTx = await submit(
+  const registerResult = await (async () =>
     await build(true)
       .with(token, (t) => {
         (t as { withdraw: (o: unknown) => unknown }).withdraw({
@@ -152,9 +251,18 @@ async function main(argv: string[]): Promise<number> {
           "0x0",
         ],
       }))
-      .execute({ provingBlockId: await settledBlock() }),
-  );
+      .execute({ provingBlockId: await settledBlock() }))();
+  const registerTx = await submit(registerResult);
   console.log(`   ${registerTx}\n`);
+
+  // The registry that comes back is already advanced past this transaction:
+  // PoolSimulator increments the note nonce while compiling and writes it back.
+  // Carrying it into the claim leg is what stops that leg asking an indexer
+  // pinned to a block where this note did not yet exist.
+  // The claim leg must not read a block older than the note the register leg
+  // just wrote, or it will be handed an index that is already spent.
+  const registerBlock = await blockOf(registerTx);
+  await waitForPin(registerBlock);
 
   // 2. Claim — an open note is created for the helper to fill, and the helper
   //    approves the pool to pull exactly the escrowed amount into it.

@@ -38,3 +38,6 @@ TELEGRAM_QUESTIONS.md
 
 # Next.js static export output (built and deployed, not committed)
 apps/web/out/
+
+# Payout preimages. The only thing that can open an escrowed payout; never commit.
+.payouts/
