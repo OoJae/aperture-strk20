@@ -172,8 +172,11 @@ export default function Proof() {
         </p>
         <p className="fade" data-reveal data-delay="80">
           On <strong>{DEPLOYMENTS.sepolia.label}</strong>, not here. Three ballot
-          identities are deployed and registered with the pool there, one real
-          sealed ballot was cast, counted, and finalized at 5 STRK for. On{" "}
+          identities are deployed and registered with the pool there, and one
+          real sealed ballot was cast and finalized at 5 STRK for &mdash; though
+          that ballot arrived 945 blocks after the voting window closed, and the
+          counting code as it stands today scores it zero. It is being re-run
+          inside the window rather than left to imply a clean result. On{" "}
           {DEPLOYMENTS[ACTIVE].label} no ballot identity is deployed, so the
           addresses this site derives are addresses nothing can receive at. The
           contracts and the payouts are real on mainnet; the voting is not.

@@ -129,9 +129,25 @@ a voter, or a choice**; the on-chain sender is a relayer. The tally read it
 exactly. That gap — opaque on-chain, precise to the key holder — is the design
 working.
 
-One honest wrinkle: the vote landed just after the proposal's window closed. The
-window governs when `finalize` is permitted, not when notes may arrive, so the
-count is sound, but a clean rehearsal would cast inside the window.
+**That published tally counted a ballot cast after voting had closed.** The note
+arrived at block 13,604,673; the window closed at 13,603,728 — 945 blocks late.
+Re-counting the same proposal with the current worker returns **zero**, because
+it now pins to the window's close and filters by it.
+
+An earlier version of this paragraph called that "just after" the close and said
+"the count is sound". Both were generous. A ballot that may arrive at any time
+makes the window constrain nothing, and an observer could wait until the result
+is known and then vote — the exact property sealed-ballot voting exists to
+prevent. v1 does not enforce arrival time anywhere, and neither did the worker
+that produced this number.
+
+The result stays here with this note attached rather than being quietly dropped,
+because it is what happened. v2 binds the window on chain: `finalize` takes the
+block it counted through and asserts it equals `end_block`, so a late-counted
+tally cannot be published at all. The Phase D rehearsal casts inside the window,
+and that becomes the record.
+
+Full working: `docs/evidence/2026-08-23-late-ballot.md`.
 
 ### A payout, driven through the pool
 

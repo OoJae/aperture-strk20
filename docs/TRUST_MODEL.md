@@ -75,6 +75,16 @@ the ballots actually cast. Reads are pinned to a settled block hash so a second
 party with the same viewing keys can re-run the count and compare, but that
 audits the operator against itself rather than against the chain.
 
+Until v2 that claim was weaker than it sounded, because **nothing published
+which block the count was pinned to.** A tally's validity depends entirely on
+that block — the same ballot box counted through two different blocks gives two
+different answers, and this repository has an instance of exactly that: the
+Sepolia proposal published as 5 STRK counted a ballot that arrived 945 blocks
+after the window closed, and the current worker scores it zero. v2's `finalize`
+takes the counted-through block and asserts it equals the proposal's `end_block`,
+so the pin is both published and unique per proposal. That does not make the sum
+provable; it makes the claim checkable, which it was not before.
+
 Systems that solve this — Helios, Belenios, MACI — publish either a homomorphic
 tally with a proof of correct decryption, or a ZK proof that the published
 result follows from the committed ballot set. A credible first step here would

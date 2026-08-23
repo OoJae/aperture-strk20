@@ -118,7 +118,7 @@ Named rather than hidden:
 | Tally service | Implemented. Discovers notes, aggregates, publishes on-chain. Run against Sepolia |
 | Demo dapp | Live on mainnet, no login |
 | Mainnet transactions | 10 in [`strk20.json`](strk20.json), 6 through our own anonymizer |
-| Sealed-vote lifecycle | Proven end to end on **Sepolia**. Never run on mainnet |
+| Sealed-vote lifecycle | Run end to end on **Sepolia**, but the ballot arrived 945 blocks after the window closed and the current worker scores it zero. Being re-run properly. Never run on mainnet |
 | Claiming a payout | **Unfinished** — reverts with `NON_ZERO_VALUE` on every network |
 | Refunds | Computed, and undeliverable twice over: no prover, and no payee recorded |
 | Demo video | Not made |
