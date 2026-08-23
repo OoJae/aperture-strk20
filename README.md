@@ -19,11 +19,17 @@ Built for the STRK20 Private Sprint, August 2026.
 | `GovernanceAnonymizer` (mainnet) | [`0x05cc31d1…44546890`](https://voyager.online/contract/0x05cc31d13d5901347d009f70f59abacb22b76e84963286004b67bf4644546890) |
 | STRK20 pool (mainnet) | [`0x040337b1…6ffe812a`](https://voyager.online/contract/0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a) |
 
-A treasury payout has been executed on mainnet through Aperture's own
+Six treasury payouts have been executed on mainnet through Aperture's own
 anonymizer — the pool withdrew to `GovernanceAnonymizer`, called its
 `privacy_invoke`, and the contract parked the value against a commitment only a
 preimage can open. Hashes are in [`strk20.json`](strk20.json); Sepolia
 deployments and their limits are in [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md).
+
+None of those payouts has ever been *claimed*. The claim leg reverts with
+`NON_ZERO_VALUE`, and because each preimage was displayed once and never
+stored, 14 STRK is permanently locked in a contract with no sweep function.
+That is the most expensive thing this project has learned and it is stated here
+rather than in a footnote.
 
 The complete sealed-vote lifecycle — three ballot identities registered, a real
 sealed ballot cast, tallied, and the aggregate published on-chain — runs on
@@ -80,10 +86,13 @@ of the choice, so a briber can confirm it against this repository's own
 contract. Defeating a willing seller needs a mechanism this design does not have
 — see [`docs/TRUST_MODEL.md`](docs/TRUST_MODEL.md) for what that would take.
 
-**Trusted today.** The tally operator holds the viewing keys, so it can see
-individual ballots and is trusted to publish only the aggregate, and that
-aggregate is not independently verifiable. Refunds are computed but cannot be
-executed. Both are real assumptions, not technicalities.
+**Trusted today.** Three parties, not two. The tally operator holds the viewing
+keys, so it can see individual ballots and is trusted to publish only the
+aggregate, and that aggregate is not independently verifiable. The discovery
+service can under-report, and a tally computed from an incomplete read is wrong
+in a way nothing on-chain reveals — it is also handed a viewing key in
+cleartext. Refunds are computed but cannot be executed, and have no payee
+recorded even in principle. These are real assumptions, not technicalities.
 
 The full accounting is in [`docs/TRUST_MODEL.md`](docs/TRUST_MODEL.md). It is
 worth reading before trusting anything here.
@@ -106,11 +115,13 @@ Named rather than hidden:
 |---|---|
 | Cairo contracts | Implemented, 39 `snforge` tests, deployed to mainnet and Sepolia |
 | Shared TS package | Implemented, 31 tests — ballot derivation, viewing keys, aggregation |
-| Tally service | Working; reads the live indexer, aggregates, publishes on-chain |
+| Tally service | Implemented. Discovers notes, aggregates, publishes on-chain. Run against Sepolia |
 | Demo dapp | Live on mainnet, no login |
-| Mainnet transactions | Recorded in [`strk20.json`](strk20.json) |
-| Sealed-vote lifecycle | Proven end to end on Sepolia |
-| Refunds | Computed, not executable |
+| Mainnet transactions | 10 in [`strk20.json`](strk20.json), 6 through our own anonymizer |
+| Sealed-vote lifecycle | Proven end to end on **Sepolia**. Never run on mainnet |
+| Claiming a payout | **Unfinished** — reverts with `NON_ZERO_VALUE` on every network |
+| Refunds | Computed, and undeliverable twice over: no prover, and no payee recorded |
+| Demo video | Not made |
 
 ## Repository layout
 
@@ -126,20 +137,84 @@ strk20.json                   Transaction manifest
 
 ## Building
 
-Requires Node 24+, pnpm, Scarb 2.20.0, and Starknet Foundry 0.63.0.
+Requires Node 24+, pnpm 11.1.2, Scarb 2.20.0, and Starknet Foundry 0.63.0.
+
+### The GitHub Packages token
+
+`pnpm install` fails on a clean machine without this, and it is the first
+command in this section, so read it before running it.
+
+`services/tally` depends on `@starkware-libs/starknet-privacy-sdk`, which is
+published to GitHub Packages rather than npm. The committed `.npmrc` routes that
+scope there, and GitHub Packages requires a token even for public packages — so
+a fresh clone gets a **401**.
+
+```sh
+gh auth refresh -h github.com -s read:packages
+echo "//npm.pkg.github.com/:_authToken=$(gh auth token)" >> ~/.npmrc
+```
+
+The token lives in `~/.npmrc`, never in this repository.
+
+If you only want the contracts, the shared package, and the web app — none of
+which need the SDK — skip the token entirely:
+
+```sh
+pnpm install --frozen-lockfile --filter '!@aperture/tally'
+```
+
+### Then
 
 ```sh
 pnpm install
+pnpm build          # the web export and the shared package
+pnpm test           # repo-invariant tests + package tests
 pnpm typecheck
-pnpm test
+pnpm verify         # re-check every manifest hash against mainnet
 
-cd contracts
-scarb build
-snforge test
+cd contracts && scarb build && snforge test
 ```
 
 Copy `.env.example` to `.env` and fill it in before running anything that talks
-to a network. `.env` is gitignored and must stay that way.
+to a network. It ships with working values for everything that is not a secret,
+including the STRK20 discovery and proving endpoints. `.env` is gitignored and
+must stay that way.
+
+## From clone to a cast ballot
+
+On **Sepolia**. It cannot be done on mainnet: no ballot identity is deployed
+there, so a ballot sent to a mainnet ballot address is lost.
+
+Starknet fees are STRK-denominated, not ETH. Accounts are contracts, so you fund
+the counterfactual address *between* `account create` and `account deploy`.
+
+```sh
+# 1. An account, funded at https://faucet.starknet.io
+sncast account create --name aperture-sepolia --url "$STARKNET_RPC_URL_SEPOLIA_SNCAST"
+#    fund the printed address, then:
+sncast account deploy --name aperture-sepolia --url "$STARKNET_RPC_URL_SEPOLIA_SNCAST"
+
+# 2. Your own registry and anonymizer, or point .env at the ones in docs/DEPLOYMENTS.md
+scripts/deploy-sepolia.sh deploy
+
+# 3. A proposal, and its three ballot identities
+scripts/deploy-sepolia.sh lifecycle
+node services/tally/src/register-ballots.ts 1
+
+# 4. Cast. Shields 5 STRK publicly, waits ten blocks for the note to mature,
+#    then privately transfers it into the FOR identity.
+node services/tally/src/cast-vote.ts 1 for 5
+
+# 5. Count, then publish the aggregate
+node services/tally/src/index.ts 1
+node services/tally/src/index.ts 1 --finalize
+```
+
+**If a step hangs rather than failing:** an insufficient shielded balance
+surfaces as a timeout, not an error. A pool action that cannot cover its amount
+plus the flat fee — 2 STRK on Sepolia, 6 on mainnet, both taken from the
+*shielded* balance — hangs in proving or returns `OHTTP request failed (500)`.
+Check the shielded balance first. Three days were lost to this once.
 
 ## Things that surprise people
 

@@ -63,5 +63,49 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # The deployed artifact was never compiled in CI, so a build-breaking
+      # change to apps/web passed green and only failed on Vercel.
+      - name: Build
+        run: pnpm build
+
       - name: Test
         run: pnpm test
+
+      # Generated files are generated. If either would change, the tree is
+      # carrying a hand-edit that will drift.
+      - name: Generated files are in sync
+        run: |
+          node scripts/sync-manifest.ts --check
+          node scripts/sync-counts.ts --check
+          git diff --exit-code
+
+  tokenless-clone:
+    name: Clean clone, no token
+    runs-on: ubuntu-latest
+    # The README tells a stranger they can work on the contracts, the shared
+    # package and the web app without a GitHub Packages token. This job is what
+    # makes that a checked claim rather than a hopeful one.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.1.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install without the tally workspace
+        run: pnpm install --frozen-lockfile --filter '!@aperture/tally'
+
+      - name: Shared package
+        run: |
+          pnpm --filter @aperture/strk20-governance typecheck
+          pnpm --filter @aperture/strk20-governance test
+
+      - name: Web app builds
+        run: pnpm --filter @aperture/web build
+
+      - name: Repo invariants
+        run: node --test scripts/tests/*.test.ts
