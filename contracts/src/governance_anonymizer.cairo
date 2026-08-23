@@ -195,6 +195,7 @@ pub mod errors {
     pub const TERMS_MISMATCH: felt252 = 'TERMS_MISMATCH';
     pub const PAYOUT_CAP_EXCEEDED: felt252 = 'PAYOUT_CAP_EXCEEDED';
     pub const ASSERTED_CAP_EXCEEDED: felt252 = 'ASSERTED_CAP_EXCEEDED';
+    pub const PAYOUT_NOT_AUTHORIZED: felt252 = 'PAYOUT_NOT_AUTHORIZED';
     pub const AMOUNT_OVERFLOW: felt252 = 'AMOUNT_OVERFLOW';
 }
 
@@ -400,6 +401,43 @@ pub mod GovernanceAnonymizer {
             let existing = self.payouts.read(commitment_hash);
             assert(existing.token.is_zero(), errors::COMMITMENT_EXISTS);
 
+            // The DAO must have committed this exact payout before anyone can
+            // escrow against it.
+            //
+            // Everything above this point is satisfied by a stranger. Reaching
+            // here means being the pool, and the pool relays any user's private
+            // transaction; `terms.passed` is a permanent public fact. So without
+            // this check, an attacker escrows the whole remaining cap of their
+            // own money, claims it straight back, and `spent` — which never
+            // decreases — sits at the cap. Every later payout under that
+            // proposal then fails PAYOUT_CAP_EXCEEDED, permanently, because
+            // there is no owner and no upgrade. The cost is two pool fees and
+            // the attacker keeps their money.
+            //
+            // The registry knows the difference between the DAO spending its
+            // budget and a stranger spending it, because only the tally
+            // operator can issue a licence there. The anonymizer cannot know it:
+            // it is handed value with no sender, which is the property it exists
+            // to provide.
+            let authorization = registry.payout_authorization(commitment_hash);
+            assert(authorization.amount.is_non_zero(), errors::PAYOUT_NOT_AUTHORIZED);
+            assert(authorization.proposal_id == proposal_id, errors::PAYOUT_NOT_AUTHORIZED);
+            assert(authorization.amount == amount, errors::PAYOUT_NOT_AUTHORIZED);
+
+            // Two caps, and only the second is this contract's own.
+            //
+            // `terms.cap` is already enforced on the registry, over the sum of
+            // every licence issued — which is the only place it CAN be enforced
+            // against a griefer, since that is the only side that knows who is
+            // spending. Repeating it here is a mirror: it costs one comparison
+            // and it means the two contracts cannot silently disagree about how
+            // much a proposal has spent.
+            //
+            // `asserted_payout_cap` is different. It is this contract's
+            // immutable constructor constant, bounding what may move under a
+            // tally nobody's ballots produced, and the registry has no way to
+            // know it. It is zero on Sepolia. Nothing else enforces it.
+            //
             // Caps in u256, so the sum cannot wrap before it is compared.
             let spent_after: u256 = self.spent.read(proposal_id).into() + amount.into();
             assert(spent_after <= terms.cap.into(), errors::PAYOUT_CAP_EXCEEDED);

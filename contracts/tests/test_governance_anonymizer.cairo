@@ -135,8 +135,25 @@ fn setup() -> (ContractAddress, IGovernanceAnonymizerDispatcher) {
     (address, IGovernanceAnonymizerDispatcher { contract_address: address })
 }
 
+/// The DAO committing budget to one specific payout, on the registry.
+///
+/// Every registration needs one. The anonymizer is handed value with no sender
+/// — that is what it is for — so it cannot tell the DAO's money from a
+/// stranger's, and the budget has to be spent where the caller is known.
+/// Without this, anyone could burn a passed proposal's cap to zero for good by
+/// escrowing their own funds and claiming them straight back.
+fn authorize(
+    d: IGovernanceAnonymizerDispatcher, proposal_id: u64, commitment: felt252, amount: u128,
+) {
+    let registry = d.get_registry();
+    cheat_caller_address(registry, OPERATOR, CheatSpan::TargetCalls(1));
+    IProposalRegistryDispatcher { contract_address: registry }
+        .authorize_payout(proposal_id, commitment, amount);
+}
+
 fn register(address: ContractAddress, d: IGovernanceAnonymizerDispatcher) -> felt252 {
     let commitment = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, commitment, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     let out = d
         .privacy_invoke(
@@ -225,10 +242,13 @@ fn amount_must_be_non_zero() {
 #[should_panic(expected: 'HELPER_UNDERFUNDED')]
 fn cannot_register_more_than_the_pool_actually_sent() {
     let (address, d) = setup();
+    // Licensed for the full amount, so the test still reaches the ledger check
+    // rather than stopping at the licence.
+    let commitment = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, commitment, AMOUNT * 10);
     start_cheat_caller_address(address, POOL);
     d.privacy_invoke(
-        GovernanceOperation::RegisterPayout, commitment_for(d, 1, AMOUNT, SECRET), strk(),
-        AMOUNT * 10, 1, 0, 0,
+        GovernanceOperation::RegisterPayout, commitment, strk(), AMOUNT * 10, 1, 0, 0,
     );
     stop_cheat_caller_address(address);
 }
@@ -362,6 +382,7 @@ fn claim_round_trips_for_any_secret(secret: felt252) {
     }
     let (address, d) = setup();
     let commitment = commitment_for(d, 1, AMOUNT, secret);
+    authorize(d, 1, commitment, AMOUNT);
 
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d.privacy_invoke(GovernanceOperation::RegisterPayout, commitment, strk(), AMOUNT, 1, 0, 0);
@@ -428,6 +449,7 @@ fn two_distinct_commitments_cannot_share_one_balance() {
     let (address, d) = setup(); // funded with exactly AMOUNT
 
     let c433 = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, c433, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d
         .privacy_invoke(
@@ -443,6 +465,7 @@ fn two_distinct_commitments_cannot_share_one_balance() {
 
     let mut safe = IGovernanceAnonymizerSafeDispatcher { contract_address: address };
     let c448 = commitment_for(d, 1, 1, 'a second preimage');
+    authorize(d, 1, c448, 1);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     match safe
         .privacy_invoke(
@@ -466,6 +489,7 @@ fn a_claim_interleaved_between_two_registrations() {
     let (address, d) = setup();
 
     let c471 = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, c471, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d
         .privacy_invoke(
@@ -492,6 +516,7 @@ fn a_claim_interleaved_between_two_registrations() {
     // value that is gone.
     let mut safe = IGovernanceAnonymizerSafeDispatcher { contract_address: address };
     let c497 = commitment_for(d, 1, 1, 'later preimage');
+    authorize(d, 1, c497, 1);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     match safe
         .privacy_invoke(
@@ -512,6 +537,7 @@ fn a_claim_interleaved_between_two_registrations() {
 fn outstanding_is_tracked_per_token() {
     let (address, d) = setup();
     let c517 = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, c517, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d
         .privacy_invoke(
@@ -538,6 +564,7 @@ fn get_unattached_reports_value_nobody_can_move() {
     assert!(d.get_unattached(strk()) == AMOUNT.into(), "unattached before any registration");
 
     let c543 = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, c543, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d
         .privacy_invoke(
@@ -574,6 +601,7 @@ fn the_commitment_binds_the_amount() {
     // entries.
     let (address, d) = setup();
     let c579 = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, c579, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d
         .privacy_invoke(
@@ -599,6 +627,7 @@ fn the_commitment_binds_the_amount() {
 fn the_commitment_binds_the_proposal() {
     let (address, d) = setup();
     let c604 = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, c604, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d
         .privacy_invoke(
@@ -660,6 +689,12 @@ fn the_commitment_is_not_the_identity_function() {
 // The suite had `the_commitment_binds_the_amount`, which only tested the honest
 // direction — claiming MORE than an honest entry holds. It passed. This is the
 // dishonest direction, and it is where the money was.
+//
+// `authorize_payout` narrows who can reach this — a registration now needs the
+// tally operator's licence — but it cannot close it. The registry does not see
+// the secret either, so its licence pins the amount escrowed, never the amount
+// the commitment names. A mint built wrong by the DAO's own tooling still
+// produces this entry, and claim() is the only place the two amounts meet.
 
 #[test]
 #[should_panic(expected: 'TERMS_MISMATCH')]
@@ -668,6 +703,11 @@ fn a_registration_whose_commitment_lies_about_its_amount_cannot_be_claimed() {
 
     // A commitment that names AMOUNT, stored against an entry worth 1 wei.
     let lying_commitment = commitment_for(d, 1, AMOUNT, SECRET);
+    // The licence pins the amount ESCROWED, not the amount the commitment
+    // names — the registry never sees the secret either. So a malformed mint
+    // survives the licence, and claim() is the only place the two can be
+    // compared.
+    authorize(d, 1, lying_commitment, 1);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d.privacy_invoke(GovernanceOperation::RegisterPayout, lying_commitment, strk(), 1, 1, 0, 0);
 
@@ -686,6 +726,7 @@ fn a_lying_registration_cannot_strand_an_honest_payout() {
     let (address, d) = setup();
 
     let honest = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, honest, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d.privacy_invoke(GovernanceOperation::RegisterPayout, honest, strk(), AMOUNT, 1, 0, 0);
     assert!(d.get_outstanding(strk()) == AMOUNT.into());
@@ -694,6 +735,7 @@ fn a_lying_registration_cannot_strand_an_honest_payout() {
     set_balance(address, (AMOUNT + 1).into(), Token::STRK);
 
     let lying = commitment_for(d, 1, AMOUNT, 'another preimage');
+    authorize(d, 1, lying, 1);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d.privacy_invoke(GovernanceOperation::RegisterPayout, lying, strk(), 1, 1, 0, 0);
 
@@ -733,6 +775,7 @@ fn a_claim_naming_the_wrong_terms_finds_no_entry_at_all() {
     // terms do not already pin.
     let (address, d) = setup();
     let commitment = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, commitment, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     d.privacy_invoke(GovernanceOperation::RegisterPayout, commitment, strk(), AMOUNT, 1, 0, 0);
 
@@ -742,4 +785,78 @@ fn a_claim_naming_the_wrong_terms_finds_no_entry_at_all() {
         Result::Ok(_) => panic!("a claim naming another proposal was honoured"),
         Result::Err(data) => assert!(*data.at(0) == 'COMMITMENT_NOT_FOUND'),
     }
+}
+
+// --- the cap-burning grief ------------------------------------------------
+//
+// Everything the anonymizer can check about a registration is satisfied by a
+// stranger: `terms.passed` is a permanent public fact, and being the pool means
+// nothing, because the pool relays anybody's private transaction. So before the
+// licence, an attacker could escrow their own money against a passed proposal,
+// claim it straight back through the same anonymizer, and walk away having
+// moved `spent` — which never decreases — to the cap. With no owner, no sweep
+// and no upgrade, every later payout under that proposal would then fail
+// PAYOUT_CAP_EXCEEDED for good. Two pool fees, and the attacker keeps their
+// money.
+
+#[test]
+#[should_panic(expected: 'PAYOUT_NOT_AUTHORIZED')]
+fn a_stranger_cannot_escrow_against_a_passed_proposal() {
+    let (address, d) = setup();
+    let commitment = commitment_for(d, 1, AMOUNT, SECRET);
+    // Everything except the licence.
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, commitment, strk(), AMOUNT, 1, 0, 0);
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn a_rejected_registration_burns_none_of_the_budget() {
+    // The property, not just the revert: after the attempt, the DAO's own
+    // payout still registers and still claims.
+    let (address, d) = setup();
+    let safe = IGovernanceAnonymizerSafeDispatcher { contract_address: address };
+
+    let attacker = commitment_for(d, 1, AMOUNT, 'attacker preimage');
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    match safe
+        .privacy_invoke(GovernanceOperation::RegisterPayout, attacker, strk(), AMOUNT, 1, 0, 0) {
+        Result::Ok(_) => panic!("an unlicensed registration was accepted"),
+        Result::Err(data) => assert!(*data.at(0) == 'PAYOUT_NOT_AUTHORIZED'),
+    }
+    assert!(d.get_spent(1) == 0, "a rejected registration must spend no budget");
+    assert!(d.get_outstanding(strk()) == 0, "nor escrow anything");
+
+    let commitment = register(address, d);
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    let deposits = d
+        .privacy_invoke(GovernanceOperation::Claim, 0, strk(), AMOUNT, 1, SECRET, NOTE_ID);
+    assert!(*deposits.at(0) == aperture::governance_anonymizer::OpenNoteDeposit {
+        note_id: NOTE_ID, token: strk(), amount: AMOUNT,
+    });
+    assert!(d.get_payout(commitment).claimed);
+}
+
+#[test]
+#[should_panic(expected: 'PAYOUT_NOT_AUTHORIZED')]
+fn a_licence_does_not_stretch_to_a_larger_escrow() {
+    // The licence names an amount, and it is the amount that gets escrowed —
+    // otherwise a 1-wei licence would admit a registration for the whole cap.
+    let (address, d) = setup();
+    let commitment = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, commitment, AMOUNT / 2);
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, commitment, strk(), AMOUNT, 1, 0, 0);
+}
+
+#[test]
+#[should_panic(expected: 'PAYOUT_NOT_AUTHORIZED')]
+fn a_licence_issued_for_one_commitment_does_not_cover_another() {
+    let (address, d) = setup();
+    let licensed = commitment_for(d, 1, AMOUNT, SECRET);
+    authorize(d, 1, licensed, AMOUNT);
+
+    let unlicensed = commitment_for(d, 1, AMOUNT, 'a different preimage');
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, unlicensed, strk(), AMOUNT, 1, 0, 0);
 }

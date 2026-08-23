@@ -33,6 +33,19 @@ Aperture claims; the README and the demo must not claim more than it does.
   operator points at. Reads are pinned to a settled block hash so anyone can
   re-run the same count and compare, but a dishonest or broken indexer could
   under-report. The endpoint is configuration; no default is shipped.
+- **The tally operator again, over the treasury.** In v2 it is also the only
+  address that can commit a passed proposal's budget to a specific payout, via
+  `authorize_payout` on the registry. It cannot exceed the `payout_cap` the
+  proposal was created with, and it cannot pay against a proposal that did not
+  pass — but within those bounds it chooses the commitment, and the commitment
+  is what determines who can claim. So the operator picks the recipient.
+
+  That authority sits there deliberately. The anonymizer is handed value with no
+  sender, which is the property the whole design rests on, so it cannot tell the
+  DAO's spending from a stranger's. Somebody identifiable has to hold the budget,
+  and the alternative is worse: without this, anyone at all could burn a passed
+  proposal's cap to zero permanently for the price of two pool fees. See
+  `docs/evidence/2026-08-23-cap-burning.md`.
 - **Refund honesty** — and see below, because in this version it is worse than a
   trust assumption.
 
@@ -115,10 +128,14 @@ Treat voting as a one-way stake until this line says otherwise.
   checked rather than trusted.
 - Add a re-voting or key-rotation mechanism, without which no amount of
   encryption buys coercion resistance.
-- Add a quorum. `has_passed` compares for-weight against against-weight and
-  nothing else, so a single ballot with no turnout passes a proposal and unlocks
-  a treasury payout. The anonymizer's registry pointer is immutable, so this
-  needs both contracts redeployed together.
+- Move payout authority off a single operator — a multisig, or a timelock long
+  enough for the DAO to see a licence issued before it can be registered. Today
+  one key chooses every recipient within the cap.
+
+Built since this list was written, and no longer pending: a quorum floor with a
+per-proposal raise (v1's `has_passed` compared for-weight against against-weight
+and nothing else, so a single ballot with no turnout unlocked a payout), a
+published counted-through block, and a per-proposal payout token and cap.
 
 ## Notes on the protocol itself
 

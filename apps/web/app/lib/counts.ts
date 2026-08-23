@@ -7,7 +7,7 @@
  */
 
 export const TEST_COUNTS = {
-  cairo: 68,
+  cairo: 81,
   typescript: 71,
-  total: 139,
+  total: 152,
 } as const;

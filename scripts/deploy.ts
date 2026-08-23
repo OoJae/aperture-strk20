@@ -179,14 +179,16 @@ async function main(): Promise<number> {
       : (env.STARKNET_RPC_URL_SEPOLIA_SNCAST ?? env.STARKNET_RPC_URL_SEPOLIA);
   if (!rpc) throw new Error(`No RPC configured for ${network}.`);
 
-  const masterPublicKey = env.DAO_MASTER_PUBLIC_KEY_V2;
-  if (!masterPublicKey) {
-    throw new Error(
-      "DAO_MASTER_PUBLIC_KEY_V2 is not set. v2 deploys against a fresh keypair, " +
-        "so that the seed deriving every ballot viewing key is not also a key " +
-        "disclosed to the indexer.",
-    );
-  }
+  // The canonical name, deliberately — not a _V2 alias.
+  //
+  // The first Sepolia deploy read DAO_MASTER_PUBLIC_KEY_V2 and burned it into an
+  // immutable constructor slot, while every client in the repo derives ballot
+  // addresses from DAO_MASTER_PUBLIC_KEY. Those were different values, so the
+  // registry published addresses no client could reproduce. Two names for one
+  // role is how that happens; there is one name now, and cutting over means
+  // changing its value.
+  const masterPublicKey = env.DAO_MASTER_PUBLIC_KEY;
+  if (!masterPublicKey) throw new Error("DAO_MASTER_PUBLIC_KEY is not set.");
 
   const state = readState(network);
   const felt = (v: string) => num.toHex(BigInt(v));

@@ -437,3 +437,132 @@ fn three_maximal_weights_do_not_panic() {
     );
     assert!(!d.has_passed(id), "for == against is not a pass");
 }
+
+// --- payout authorisation -------------------------------------------------
+//
+// The budget is spent here rather than in the anonymizer, because this is the
+// only one of the two that knows who is spending it. The anonymizer is reached
+// through the pool, which relays anybody's private transaction, and it is
+// handed value with no sender — that is the property it exists to provide. So
+// without a licence issued here, a stranger could escrow their own money
+// against a passed proposal, claim it straight back, and leave `spent` sitting
+// at the cap with every later payout failing for good.
+
+fn pass_a_proposal(address: ContractAddress, d: IProposalRegistryDispatcher) -> u64 {
+    let id = create_default_proposal(address, d);
+    start_cheat_block_number_global(END + 1);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(id, Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 }, END, TallyProvenance::BallotDerived);
+    id
+}
+
+#[test]
+fn the_operator_can_commit_budget_to_a_payout() {
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(id, 'commitment', 500);
+
+    let auth = d.payout_authorization('commitment');
+    assert!(auth.proposal_id == id && auth.amount == 500, "licence should round-trip");
+    assert!(d.get_authorized(id) == 500);
+    // An unwritten slot must read as no licence, not as a licence for nothing.
+    assert!(d.payout_authorization('never issued').amount == 0);
+}
+
+#[test]
+#[should_panic(expected: 'NOT_TALLY_OPERATOR')]
+fn a_stranger_cannot_commit_the_daos_budget() {
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    cheat_caller_address(address, STRANGER, CheatSpan::TargetCalls(1));
+    d.authorize_payout(id, 'commitment', 500);
+}
+
+#[test]
+#[should_panic(expected: 'NOT_TALLY_OPERATOR')]
+fn even_the_owner_cannot_commit_the_daos_budget() {
+    // Same split as `finalize`: the owner administers the registry, the
+    // operator moves value. Neither borrows the other's authority.
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
+    d.authorize_payout(id, 'commitment', 500);
+}
+
+#[test]
+#[should_panic(expected: 'PROPOSAL_NOT_PASSED')]
+fn budget_cannot_be_committed_before_the_vote_passes() {
+    let (address, d) = deploy();
+    let id = create_default_proposal(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(id, 'commitment', 500);
+}
+
+#[test]
+#[should_panic(expected: 'AUTHORIZATION_EXISTS')]
+fn one_commitment_cannot_be_licensed_twice() {
+    // Otherwise the same hash could be relicensed indefinitely and the running
+    // total would count it every time while the anonymizer honoured it once.
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(id, 'commitment', 500);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(id, 'commitment', 500);
+}
+
+#[test]
+#[should_panic(expected: 'PAYOUT_CAP_EXCEEDED')]
+fn the_cap_bounds_the_sum_of_every_licence() {
+    // Not each one individually — two licences that each fit must still fail
+    // together once they exceed the cap.
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(id, 'first', PAYOUT_CAP);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(id, 'second', 1);
+}
+
+#[test]
+#[should_panic(expected: 'ZERO_PAYOUT_AMOUNT')]
+fn a_licence_for_nothing_is_rejected() {
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(id, 'commitment', 0);
+}
+
+#[test]
+#[should_panic(expected: 'ZERO_COMMITMENT_HASH')]
+fn a_licence_naming_no_commitment_is_rejected() {
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(id, 0, 500);
+}
+
+#[test]
+fn each_proposal_carries_its_own_budget() {
+    let (address, d) = deploy();
+    let first = pass_a_proposal(address, d);
+
+    // A second proposal, passed on its own window.
+    start_cheat_block_number_global(START - 1);
+    cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
+    let second = d.create_proposal('ipfs://proposal-2', START, END, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP);
+    start_cheat_block_number_global(END + 1);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(second, Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 }, END, TallyProvenance::BallotDerived);
+
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(first, 'a', PAYOUT_CAP);
+    // The first proposal's budget is fully committed; the second's is untouched.
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(second, 'b', PAYOUT_CAP);
+
+    assert!(d.get_authorized(first) == PAYOUT_CAP);
+    assert!(d.get_authorized(second) == PAYOUT_CAP);
+}

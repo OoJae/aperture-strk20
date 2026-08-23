@@ -60,6 +60,23 @@ pub struct PayoutTerms {
     pub provenance: TallyProvenance,
 }
 
+/// A specific payout the DAO has committed to, named by its commitment hash.
+///
+/// This exists because the anonymizer cannot tell whose money it is holding —
+/// that is the entire point of it. Anyone can send a private transaction that
+/// reaches `register_payout`, so without a licence issued here, a stranger
+/// could escrow their own funds against a passed proposal, claim them straight
+/// back, and leave the proposal's cap burnt to zero for good. The budget has to
+/// be spent by whoever is accountable for it, and that is the registry.
+///
+/// A zero `amount` means no authorisation: `authorize_payout` rejects zero, so
+/// an unwritten slot cannot read as a licence for nothing.
+#[derive(Serde, Copy, Drop, PartialEq, Debug, starknet::Store, Default)]
+pub struct PayoutAuthorization {
+    pub proposal_id: u64,
+    pub amount: u128,
+}
+
 /// The only vote data that ever becomes public, and only after the window
 /// closes.
 #[derive(Serde, Copy, Drop, PartialEq, Debug, starknet::Store, Default)]
@@ -110,6 +127,31 @@ pub trait IProposalRegistry<TContractState> {
     /// The block the count was pinned to. Equal to `end_block` for every
     /// finalized proposal, and zero for every proposal that is not — with no
     /// ambiguity, because `create_proposal` guarantees `end_block >= 1`.
+    /// Commit part of a passed proposal's budget to one specific payout.
+    ///
+    /// The commitment hash is public from the moment it is registered, so
+    /// naming it here discloses nothing new — the recipient is hidden by the
+    /// claim being a private transaction, not by the hash being secret.
+    ///
+    /// Callable only by the tally operator, only against a passed proposal, and
+    /// only once per commitment hash. The cap is enforced here, over the sum of
+    /// everything authorised, because this is the only place that knows the
+    /// difference between the DAO spending its budget and a stranger spending it.
+    fn authorize_payout(
+        ref self: TContractState, proposal_id: u64, commitment_hash: felt252, amount: u128,
+    );
+
+    /// The licence for one commitment hash, or a zero-amount default if there
+    /// is none.
+    fn payout_authorization(
+        self: @TContractState, commitment_hash: felt252,
+    ) -> PayoutAuthorization;
+
+    /// Total authorised against a proposal so far. Never decreases: an
+    /// authorisation is a spend of the budget whether or not it is ever
+    /// registered.
+    fn get_authorized(self: @TContractState, proposal_id: u64) -> u128;
+
     fn get_counted_through(self: @TContractState, proposal_id: u64) -> u64;
     fn get_provenance(self: @TContractState, proposal_id: u64) -> TallyProvenance;
 
@@ -149,6 +191,11 @@ pub mod errors {
     pub const WINDOW_IN_THE_PAST: felt252 = 'WINDOW_IN_THE_PAST';
     pub const COUNTED_THROUGH_MISMATCH: felt252 = 'COUNTED_THROUGH_MISMATCH';
     pub const PROVENANCE_UNSET: felt252 = 'PROVENANCE_UNSET';
+    pub const PROPOSAL_NOT_PASSED: felt252 = 'PROPOSAL_NOT_PASSED';
+    pub const ZERO_COMMITMENT_HASH: felt252 = 'ZERO_COMMITMENT_HASH';
+    pub const ZERO_PAYOUT_AMOUNT: felt252 = 'ZERO_PAYOUT_AMOUNT';
+    pub const AUTHORIZATION_EXISTS: felt252 = 'AUTHORIZATION_EXISTS';
+    pub const PAYOUT_CAP_EXCEEDED: felt252 = 'PAYOUT_CAP_EXCEEDED';
 }
 
 #[starknet::contract]
@@ -164,7 +211,10 @@ pub mod ProposalRegistry {
     use crate::ballot::{
         Choice, ballot_address as derive_ballot_address, ballot_domain as compute_ballot_domain,
     };
-    use super::{IProposalRegistry, PayoutTerms, Proposal, Tally, TallyProvenance, errors};
+    use super::{
+        IProposalRegistry, PayoutAuthorization, PayoutTerms, Proposal, Tally, TallyProvenance,
+        errors,
+    };
 
     #[storage]
     struct Storage {
@@ -191,6 +241,10 @@ pub mod ProposalRegistry {
         counted_through: Map<u64, u64>,
         provenances: Map<u64, TallyProvenance>,
         allowed_proposers: Map<ContractAddress, bool>,
+        /// Licences issued, by commitment hash, and the running total per
+        /// proposal that the cap is checked against.
+        authorizations: Map<felt252, PayoutAuthorization>,
+        authorized: Map<u64, u128>,
     }
 
     #[event]
@@ -199,6 +253,7 @@ pub mod ProposalRegistry {
         ProposalCreated: ProposalCreated,
         ProposalFinalized: ProposalFinalized,
         ProposerAllowed: ProposerAllowed,
+        PayoutAuthorized: PayoutAuthorized,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -228,6 +283,17 @@ pub mod ProposalRegistry {
         pub provenance: TallyProvenance,
         /// Emitted so the pass rule can be checked from the log alone.
         pub quorum: u128,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct PayoutAuthorized {
+        #[key]
+        pub proposal_id: u64,
+        #[key]
+        pub commitment_hash: felt252,
+        pub amount: u128,
+        /// Running total, so the cap can be audited from the log alone.
+        pub authorized_after: u128,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -400,6 +466,56 @@ pub mod ProposalRegistry {
 
         fn has_passed(self: @ContractState, proposal_id: u64) -> bool {
             self.payout_terms(proposal_id).passed
+        }
+
+        fn authorize_payout(
+            ref self: ContractState, proposal_id: u64, commitment_hash: felt252, amount: u128,
+        ) {
+            assert(
+                get_caller_address() == self.tally_operator.read(), errors::NOT_TALLY_OPERATOR,
+            );
+            assert(commitment_hash.is_non_zero(), errors::ZERO_COMMITMENT_HASH);
+            // A zero-amount licence would be indistinguishable from no licence,
+            // which is exactly the read the anonymizer relies on.
+            assert(amount.is_non_zero(), errors::ZERO_PAYOUT_AMOUNT);
+
+            let terms = self.payout_terms(proposal_id);
+            assert(terms.passed, errors::PROPOSAL_NOT_PASSED);
+
+            // Once per commitment hash. The anonymizer refuses a duplicate
+            // registration too, but the budget is spent here, so the guard that
+            // keeps the accounting exact has to be here as well.
+            let existing = self.authorizations.read(commitment_hash);
+            assert(existing.amount.is_zero(), errors::AUTHORIZATION_EXISTS);
+
+            // u256, so the sum cannot wrap below the cap it is compared against.
+            let authorized_after: u256 = self.authorized.read(proposal_id).into() + amount.into();
+            assert(authorized_after <= terms.cap.into(), errors::PAYOUT_CAP_EXCEEDED);
+            let authorized_after: u128 = authorized_after
+                .try_into()
+                .expect(errors::PAYOUT_CAP_EXCEEDED);
+
+            self.authorizations.write(commitment_hash, PayoutAuthorization { proposal_id, amount });
+            self.authorized.write(proposal_id, authorized_after);
+
+            self
+                .emit(
+                    Event::PayoutAuthorized(
+                        PayoutAuthorized {
+                            proposal_id, commitment_hash, amount, authorized_after,
+                        },
+                    ),
+                );
+        }
+
+        fn payout_authorization(
+            self: @ContractState, commitment_hash: felt252,
+        ) -> PayoutAuthorization {
+            self.authorizations.read(commitment_hash)
+        }
+
+        fn get_authorized(self: @ContractState, proposal_id: u64) -> u128 {
+            self.authorized.read(proposal_id)
         }
 
         fn payout_terms(self: @ContractState, proposal_id: u64) -> PayoutTerms {

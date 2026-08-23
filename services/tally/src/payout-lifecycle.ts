@@ -248,6 +248,51 @@ async function main(argv: string[]): Promise<number> {
     }
   };
 
+  // 0. Commit the budget on the registry, publicly, before anything private
+  //    happens.
+  //
+  //    The anonymizer refuses a registration it has no licence for. It has to:
+  //    it is reached through the pool, which relays anybody's private
+  //    transaction, and it is handed value with no sender. Without this step a
+  //    stranger could escrow their own money against a passed proposal, claim
+  //    it straight back, and leave the proposal's cap burnt to zero for good.
+  //
+  //    Naming the commitment here discloses nothing the register leg would not
+  //    publish a moment later. The recipient is hidden by the claim being a
+  //    private transaction, not by this hash being secret.
+  //
+  //    An ordinary public call — the operator's own account, gas only, no pool
+  //    fee — and idempotent, so a rerun after a crash does not spend the budget
+  //    twice.
+  console.log("0. Committing the budget on the registry (public, gas only)");
+  const existingLicence = await provider.callContract({
+    contractAddress: config.registryAddress,
+    entrypoint: "payout_authorization",
+    calldata: [commitment],
+  });
+  const licenceFelts = (
+    Array.isArray(existingLicence)
+      ? existingLicence
+      : (existingLicence as { result: string[] }).result
+  ) as string[];
+  if (BigInt(licenceFelts[1] ?? "0x0") !== 0n) {
+    console.log(`   already licensed for ${licenceFelts[1]}; not spending it again\n`);
+  } else {
+    const licenceTx = await account.execute({
+      contractAddress: config.registryAddress,
+      entrypoint: "authorize_payout",
+      calldata: [num.toHex(proposalId), commitment, num.toHex(amount)],
+    });
+    const licenceReceipt = await provider.waitForTransaction(licenceTx.transaction_hash);
+    if ((licenceReceipt as { execution_status?: string }).execution_status === "REVERTED") {
+      throw new Error(
+        `authorize_payout REVERTED: ` +
+          `${(licenceReceipt as { revert_reason?: string }).revert_reason ?? "(no reason)"}`,
+      );
+    }
+    console.log(`   ${licenceTx.transaction_hash}\n`);
+  }
+
   // 1. Register — the pool withdraws to the helper, which parks the value
   //    against the commitment and returns an empty span.
   console.log("1. Registering the payout (pool -> our anonymizer)");
