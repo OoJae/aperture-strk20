@@ -1,8 +1,13 @@
 # Architecture
 
-Status: implemented and deployed. Mainnet carries the contracts and the treasury
-payouts; the sealed-vote lifecycle runs on Sepolia. Where this document and the
-code disagree, the code is right and this document is a bug.
+Status, 2026-08-23. **Mainnet carries v1** — the contracts and three treasury
+payouts. **Sepolia carries v2**, with a full sealed-vote lifecycle: a ballot
+cast inside its window, counted, and finalized against the block the contract
+now demands. v2 is not on mainnet yet.
+
+Where this document and the code disagree, the code is right and this document
+is a bug. Several statements here were exactly that until 2026-08-23; the
+corrections are noted where they mattered.
 
 ## The idea
 
@@ -13,13 +18,21 @@ nothing more — not the choice, not the weight, not the voter.
 
 Two properties fall out of this for free:
 
-- **No double voting.** Notes are spent when transferred, and a spent note
-  cannot vote again.
+- **A note cannot be spent twice.** Notes are consumed when transferred, so the
+  same weight cannot be cast twice. This is narrower than "no double voting":
+  nothing stops one person shielding more funds and casting again, because
+  nothing here knows that two notes belong to one person. Vote weight is by
+  stake, not by head.
 - **No mid-vote signalling.** There is no running count to read, so a whale
   cannot move the outcome by revealing a position early.
 
 After the window closes, the tally service sums each choice's notes and posts
-only the aggregate on-chain. Ballots are then refunded by private transfer.
+only the aggregate on-chain, along with the block it counted through.
+
+Refunding the stake afterwards is the design, and it does not work — see **Known
+limits**. This paragraph used to end "Ballots are then refunded by private
+transfer", stated as fact, two sections above the section saying it was
+impossible.
 
 ## Components
 
@@ -27,9 +40,9 @@ only the aggregate on-chain. Ballots are then refunded by private transfer.
 |---|---|---|
 | `ProposalRegistry` | `contracts/src/proposal_registry.cairo` | Proposals, windows, finalized aggregate tallies. Public by design. |
 | `GovernanceAnonymizer` | `contracts/src/governance_anonymizer.cairo` | Treasury payouts through the pool's `privacy_invoke` entry point. |
-| Tally worker | `services/tally` | Holds the viewing key, sums ballot notes, posts the aggregate, issues refunds. |
+| Tally worker | `services/tally` | Holds the ballot viewing keys, sums ballot notes, posts the aggregate. Computes refunds; cannot pay them. |
 | Shared package | `packages/strk20-governance` | Ballot-identity derivation and cast/tally/refund helpers. |
-| Demo dapp | `apps/web` | Connect, shield, cast a sealed ballot, watch the tally. |
+| Demo dapp | `apps/web` | Reads proposals, ballot identities and tallies with no wallet at all; connects a wallet only for the treasury-payout path. **Casting a ballot is not in the browser** — it is `services/tally/src/cast-vote.ts`. |
 
 ## Protocol constraints that shaped the design
 
@@ -41,8 +54,14 @@ These come from the STRK20 protocol and are not ours to negotiate:
   immediately, so the UI shows the wait rather than appearing to hang.
 - **Proving takes roughly half a minute.** Every private action needs a real
   progress state.
-- **Approve and deposit can never share a transaction.** The pool's entry point
-  is reentrancy-guarded against it.
+- **Approve and deposit are separate transactions on the SDK route.** The pool
+  pulls its flat fee, and the deposit amount, from the sender's ERC20 allowance,
+  and nothing on this route grants it for you. The wallet route looks like one
+  action because the wallet approves internally — that is the "one action, two
+  confirmations" in the project's notes, not two transactions the user sends.
+  Getting this wrong does not read as a missing approval: the proof builds, the
+  transaction assembles, and the node refuses it during fee estimation with
+  `Insufficient ERC20 allowance` buried inside a dump of the whole transaction.
 - **Note discovery is scoped to one viewing key.** There is no third-party
   enumeration, so the tally worker runs one client per ballot identity.
 
@@ -62,8 +81,16 @@ Counting is a **read**, and that is what makes it possible. Discovery needs an
 *indexer*; the heavyweight prover in the STRK20 stack is only needed to write.
 So the worker never runs one.
 
-For each choice it derives the ballot identity and its viewing key from the DAO
-master secret, reads the notes that identity received, and sums them. There is
+For each choice it derives the ballot identity from `DAO_MASTER_PUBLIC_KEY` and
+its viewing key from `DAO_BALLOT_VIEWING_SEED`, reads the notes that identity
+received, and sums them.
+
+Those are two different keys on purpose. There used to be one master secret
+doing four jobs — seeding every ballot viewing key, signing for every ballot
+account, and acting as the pool viewing key on two separate paths — and two of
+those jobs hand the value to a third-party indexer in cleartext. One scalar with
+that blast radius is not a key. This document said "the DAO master secret" long
+after the split. There is
 no batch discovery API — one viewing key sees one identity's inbox — so it fans
 out one read per choice and aggregates the results.
 
@@ -84,9 +111,15 @@ from anything that touches the network, and deduplicates by note id — paginate
 reads can legitimately return a note twice, and double-counting a vote would be
 silent.
 
-The indexer URL is configuration, never a constant. No discovery endpoint has
-been published for either network, so the operator chooses one and no such
-choice is baked into this repository.
+The indexer URL is configuration, never a constant, and no endpoint is baked
+into this repository.
+
+This section used to say no discovery endpoint had been published for either
+network, which is what the project's own notes claimed and what it believed
+until it was tested. It is wrong: discovery works on **both** networks against a
+configured endpoint, and every count and probe in this repository now runs
+against a live one. The claim gated the whole SDK route on a blocker that had
+already lifted.
 
 ## Known limits
 
@@ -98,3 +131,22 @@ it. See `docs/TRUST_MODEL.md`.
 **Delegation is cut from v1.** Sub-accounts were renamed to shadow accounts, no
 anonymizer for them is deployed on any network, and the wallet route does not
 expose them at all.
+
+## Two things v2 added that the flow above does not show
+
+**A payout must be licensed before it can be funded.** `register_payout` on the
+anonymizer is reachable by anyone — it is called through the pool, which relays
+anybody's private transaction, and the anonymizer is handed value with no sender.
+So the budget lives on the registry: `authorize_payout` is tally-operator-only
+and bounded by the proposal's `payout_cap`, and the anonymizer refuses any
+registration it has no matching licence for. Without it, a stranger could burn a
+passed proposal's entire cap to zero permanently for the price of two pool fees.
+See `docs/evidence/2026-08-23-cap-burning.md`.
+
+**`finalize` publishes the block it counted through**, and asserts it equals the
+proposal's `end_block`. A tally's validity depends entirely on the block it was
+pinned to — the same ballot box counted through two different blocks gives two
+different answers — and v1 published no pin at all. This makes the valid pin
+unique per proposal, so a second party can re-run the count against the same
+state and compare. It does not make the sum provable; it makes the claim
+checkable, which it was not before.
