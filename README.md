@@ -25,16 +25,32 @@ anonymizer — the pool withdrew to `GovernanceAnonymizer`, called its
 preimage can open. Hashes are in [`strk20.json`](strk20.json); Sepolia
 deployments and their limits are in [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md).
 
-None of those payouts has ever been *claimed*. The claim leg reverts with
-`NON_ZERO_VALUE`, and because each preimage was displayed once and never
-stored, 14 STRK is permanently locked in a contract with no sweep function.
-That is the most expensive thing this project has learned and it is stated here
-rather than in a footnote.
+**14 STRK is permanently locked in the mainnet anonymizer**, and that is stated
+here rather than in a footnote because it is the most expensive thing this
+project has learned. Two separate mistakes made it permanent: the claim leg
+reverted with `NON_ZERO_VALUE`, and each payout preimage was displayed once and
+never stored, so even a working claim has nothing to open those commitments
+with. The contract has no sweep. Nobody can recover it — not us.
 
-The complete sealed-vote lifecycle — three ballot identities registered, a real
-sealed ballot cast, tallied, and the aggregate published on-chain — runs on
-**Sepolia**. It is not yet reproduced on mainnet, because standing up a ballot
-identity there needs a proving service that has not been published.
+Both causes are now fixed and both fixes were proved by doing the thing. The
+revert was a stale note index: discovery and proving share one block parameter,
+so a pin chosen before the transaction it depends on reads pre-transaction state,
+and the pool rejects the resulting index by naming a storage slot rather than the
+staleness. Waiting for the settled pin to pass the register transaction fixed it,
+and **a payout has since been claimed end to end on Sepolia** — the first on any
+network. Preimages are now written to disk before anything is submitted, since a
+run that dies after registering has escrowed value only that preimage can open.
+See [`docs/evidence/2026-08-23-claim-leg-diagnosis.md`](docs/evidence/2026-08-23-claim-leg-diagnosis.md).
+
+The complete sealed-vote lifecycle — three ballot identities deployed at the
+addresses the registry publishes, their viewing keys registered, a sealed ballot
+cast **inside its voting window**, counted, and the aggregate published on-chain
+along with the block it was counted through — runs on **Sepolia**, against v2.
+
+Not yet on mainnet. This used to say the reason was an unpublished proving
+service; that was true when written and is not true now. Discovery and proving
+both work on both networks against configured endpoints. What remains is
+deploying v2 there and funding it.
 
 ## The problem
 
@@ -194,21 +210,37 @@ sncast account create --name aperture-sepolia --url "$STARKNET_RPC_URL_SEPOLIA_S
 #    fund the printed address, then:
 sncast account deploy --name aperture-sepolia --url "$STARKNET_RPC_URL_SEPOLIA_SNCAST"
 
-# 2. Your own registry and anonymizer, or point .env at the ones in docs/DEPLOYMENTS.md
-scripts/deploy-sepolia.sh deploy
+# 2. Your own registry and anonymizer. Idempotent, so a crashed run resumes.
+#    Verifies the ballot domain against an independent derivation BEFORE the
+#    anonymizer goes out, because its registry pointer is write-once.
+node scripts/deploy.ts sepolia --wait
 
-# 3. A proposal, and its three ballot identities
-scripts/deploy-sepolia.sh lifecycle
+# 3. A proposal, its three ballot identities, and their viewing keys.
+#    The window is sized in minutes against the chain's measured block time —
+#    Sepolia runs about 1.67s/block, and a window that cannot fit one vote is
+#    rejected rather than created.
+node scripts/create-proposal.ts "ipfs://your-proposal" --lead 12 --span 75 --cap 3
+node scripts/deploy-ballot-accounts.ts 1
 node services/tally/src/register-ballots.ts 1
 
-# 4. Cast. Shields 5 STRK publicly, waits ten blocks for the note to mature,
-#    then privately transfers it into the FOR identity.
+# 4. Cast, inside the window. Shields 5 STRK publicly, waits ten blocks for the
+#    note to mature, then privately transfers it into the FOR identity.
 node services/tally/src/cast-vote.ts 1 for 5
 
-# 5. Count, then publish the aggregate
+# 5. See what is in each ballot box. A read: no proof, no fee, no transaction.
+#    Run it before waiting out a window, not after.
+node services/tally/src/probe-ballots.ts 1
+
+# 6. Count, then publish the aggregate and the block it was counted through
 node services/tally/src/index.ts 1
 node services/tally/src/index.ts 1 --finalize
+
+# 7. Return what is left in the ballot identities once the window has closed
+node scripts/sweep-ballot-accounts.ts 1
 ```
+
+`.env` is read from the repo root automatically; an explicit `export` or a CI
+secret overrides it.
 
 **If a step hangs rather than failing:** an insufficient shielded balance
 surfaces as a timeout, not an error. A pool action that cannot cover its amount
@@ -224,6 +256,22 @@ Sharp edges worth knowing before you build against the pool:
   without the STRK20 API, and it ships on the npm `next` tag.
 - Shielding asks for **two wallet confirmations**. The wallet performs the token
   approval as a separate transaction; this is expected, not a double-submit bug.
+- **On the SDK route nothing approves for you.** That second confirmation above
+  is the wallet doing it internally. Server-side there is no wallet, and the
+  pool cannot pull its fee or your deposit without an ERC20 allowance. The
+  failure does not look like a missing approval: the proof builds, the
+  transaction assembles, and the node refuses it during fee estimation with
+  `Insufficient ERC20 allowance` buried inside a dump of the whole transaction,
+  proof blob included.
+- **A transfer must say where the change goes.** Spending a 9 STRK note to cast
+  5 leaves 4, and the compiler will not guess — it raises `Surplus of N found
+  for token X but no surplus action found` before anything is built. Use
+  `surplusTo`.
+- **A pool transaction needs far more than the flat fee in bounds.** Registering
+  a viewing key on Sepolia was refused at a 4.88 STRK balance because the node
+  wanted ~5.77 STRK of l2 gas as a ceiling. Bounds are a ceiling rather than a
+  bill and the transaction settles for a fraction, but an account that cannot
+  cover the ceiling never runs.
 - Notes **mature ten blocks** after they are created, so funds you just shielded
   cannot vote immediately.
 - Proving a private action takes roughly **half a minute**.
