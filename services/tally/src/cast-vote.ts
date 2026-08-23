@@ -77,9 +77,21 @@ async function main(argv: string[]): Promise<number> {
     cairoVersion: "1",
   });
 
-  // The voter's own viewing key. Any stable secret works; it only ever decrypts
-  // this account's own notes.
-  const voterViewingKey = config.daoMasterSecret;
+  // The voter's own pool viewing key.
+  //
+  // This was the DAO master secret, under a comment claiming it "only ever
+  // decrypts this account's own notes". Both halves were wrong: that scalar
+  // also signed for every ballot account, and the SDK POSTs whatever is given
+  // here to the indexer in cleartext — so the indexer received read and spend
+  // authority over the whole system.
+  const voterViewingKey = config.voterViewingKey;
+  if (voterViewingKey === undefined) {
+    console.error(
+      "VOTER_VIEWING_KEY is not set. It is disclosed to the indexer in " +
+        "cleartext, so it must be a key of its own — see .env.example.",
+    );
+    return 1;
+  }
 
   const transfers = createPrivateTransfers({
     account,

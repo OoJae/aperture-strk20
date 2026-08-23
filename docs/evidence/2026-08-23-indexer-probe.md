@@ -29,10 +29,21 @@ Request pinned to mainnet block 13,748,043 (`0x346f32a8652685fa…`), pool
 
 ## What this establishes
 
-1. **A mainnet discovery service is published and functional.** It echoed the
-   pinned `block_ref` back, which is the behaviour the tally worker depends on
-   for a reproducible count. Empty `notes` is the correct answer: no note has
-   ever been sent to that address, and the viewing key was a dummy.
+1. **A mainnet discovery service is published, live, and pinning correctly.** It
+   echoed the pinned `block_ref` back, which is the behaviour the tally worker
+   depends on for a reproducible count.
+
+   Stated carefully, because a later probe showed the first wording was too
+   strong: this is **not** proof it can return real notes. Sepolia, asked the
+   same question with the same dummy key, answered
+   `400 INVALID_REQUEST: "viewing_key does not match the registered public key
+   for the given address"` — it did real validation work, because that address
+   *is* registered there. Mainnet returned `200` with empty results because that
+   address has no registered key at all, so there was nothing to mismatch
+   against. Sepolia's rejection is the stronger evidence of a working service.
+   Mainnet is proven to be up and processing requests; proving it can serve a
+   real ballot needs a viewing key registered on mainnet, which costs a pool
+   fee.
 
 2. **The cursor is `ApiDiscoveryCursor`, not `ApiHistoryCursor`.** The live
    response carries `channel_discovery_complete` and `total_n_channels`, and no
@@ -58,3 +69,23 @@ answered, the proving half is not.
 `docs/DEPLOYMENTS.md:100-103`, `docs/TRUST_MODEL.md:83-95`,
 `services/tally/src/refunds.ts:6-7`, `services/tally/src/config.ts:11-13`,
 `services/tally/README.md:19-24`, `.env.example:30-33`.
+
+
+## Addendum, same day
+
+Re-probed a little over an hour later:
+
+    discovery-service.alpha-sepolia   200   (was 503)
+    transaction-prover.alpha-sepolia  200
+    discovery-service.alpha-mainnet   200
+
+The Sepolia `503` was transient. These are alpha services and they flap, which
+is an operational fact worth designing around rather than a one-off: nothing
+that computes a tally may treat an indexer error as an empty result, because
+that is a silently wrong election outcome rather than a failed run.
+
+Also read from the pools directly, since the fee drives every cost estimate in
+this repository and it had only ever been quoted from a README:
+
+    mainnet  get_fee_amount  6 STRK
+    sepolia  get_fee_amount  2 STRK

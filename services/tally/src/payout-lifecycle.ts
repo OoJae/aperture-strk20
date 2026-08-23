@@ -44,6 +44,17 @@ async function main(argv: string[]): Promise<number> {
   const proposalId = BigInt(idArg);
   const amount = BigInt(Math.round(Number(amountArg) * 1e18));
   const config = loadConfig();
+
+  // Disclosed to the indexer in cleartext, so it is its own key rather than the
+  // seed every ballot viewing key derives from.
+  const operatorViewingKey = config.operatorViewingKey;
+  if (operatorViewingKey === undefined) {
+    console.error(
+      "TALLY_OPERATOR_VIEWING_KEY is not set. See .env.example — it must be a " +
+        "key of its own, because it is sent to the indexer in cleartext.",
+    );
+    return 1;
+  }
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
   const chainId = await provider.getChainId();
   const token = process.env.STRK_TOKEN_ADDRESS!;
@@ -69,7 +80,7 @@ async function main(argv: string[]): Promise<number> {
 
   const transfers = createPrivateTransfers({
     account,
-    viewingKeyProvider: { getViewingKey: async () => config.daoMasterSecret },
+    viewingKeyProvider: { getViewingKey: async () => operatorViewingKey },
     provingProvider: { url: provingServiceUrl, chainId },
     discoveryProvider: { url: config.indexerUrl },
     poolContractAddress: config.poolAddress,

@@ -48,7 +48,7 @@ async function main(argv: string[]): Promise<number> {
       ballotAccountClassHash: config.ballotAccountClassHash,
       daoMasterPublicKey: config.daoMasterPublicKey,
     });
-    const viewingKey = deriveBallotViewingKey(config.daoMasterSecret, proposalId, choice);
+    const viewingKey = deriveBallotViewingKey(config.ballotViewingSeed, proposalId, choice);
 
     process.stdout.write(`  ${choice.padEnd(8)} ${identity.address} … `);
 
@@ -56,9 +56,12 @@ async function main(argv: string[]): Promise<number> {
       const account = new Account({
         provider,
         address: identity.address,
-        // Every ballot account is owned by the DAO master key; they differ only
-        // by the salt their address was derived with.
-        signer: `0x${config.daoMasterSecret.toString(16)}`,
+        // Every ballot account is owned by the same key; they differ only by
+        // the salt their address was derived with. This is the SIGNING role,
+        // deliberately not the seed the viewing keys come from: the seed's
+        // derived children go to the indexer, and a key that both reads and
+        // spends must never be one of them.
+        signer: config.ballotAccountPrivateKey,
         cairoVersion: "1",
       });
 

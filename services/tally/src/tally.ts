@@ -54,7 +54,7 @@ export async function runTally(
   const discovered = await Promise.all(
     identities.map(async (identity) => {
       const viewingKey = deriveBallotViewingKey(
-        config.daoMasterSecret,
+        config.ballotViewingSeed,
         proposalId,
         identity.choice,
       );
