@@ -21,7 +21,7 @@
 import { useEffect, useRef, useState } from "react";
 import { hash, num, shortString } from "starknet";
 import { walletV6 } from "starknet";
-import { DEMO, classifyReceipt } from "@aperture/strk20-governance";
+import { DEMO, classifyReceipt, mintPayout } from "@aperture/strk20-governance";
 import {
   ANONYMIZER_ADDRESS,
   DEPLOYMENT,
@@ -29,13 +29,14 @@ import {
   REGISTRY_ADDRESS,
   STRK_TOKEN,
   VOYAGER,
+  getPayoutDomain,
   hasPassed,
   provider,
   readChain,
   shortHex,
 } from "../lib/chain.ts";
 import { formatWeight } from "../lib/format.ts";
-import { PAYOUT_TAG, buildRegisterPayoutActions } from "../lib/payout.ts";
+import { buildRegisterPayoutActions } from "../lib/payout.ts";
 
 /** STRK20 landed in Wallet API 0.10.3; below that the call does not exist. */
 function supportsStrk20(versions: string[]): boolean {
@@ -192,12 +193,23 @@ export function TreasuryPayout() {
       }
 
       setState({ kind: "working", note: "building the call" });
-      const bytes = crypto.getRandomValues(new Uint8Array(30));
-      const secret = `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
-      const commitment = hash.computePoseidonHashOnElements([
-        num.toHex(BigInt(shortString.encodeShortString(PAYOUT_TAG))),
-        secret,
-      ]);
+
+      // The domain comes from the contract that will check the commitment. A
+      // commitment built against the wrong one still registers — the contract
+      // stores whatever hash it is given — and then can never be claimed.
+      const domain = await getPayoutDomain();
+
+      // Ticket and commitment together, from one call. Building them from two
+      // different sets of terms stores an entry no claim can reproduce, and
+      // nothing on chain can catch it: the contract never sees the preimage at
+      // registration.
+      const { ticket, commitment } = mintPayout({
+        domain,
+        proposalId: DEMO.payoutProposalId,
+        token: STRK_TOKEN,
+        amount: DEMO.payoutAmount,
+      });
+      const secret = ticket.secret;
 
       // Written BEFORE submitting. A crash between submit and render used to
       // lose the preimage permanently, which is exactly how value became

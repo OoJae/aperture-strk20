@@ -247,3 +247,22 @@ export function shortHex(value: string, lead = 6, tail = 4): string {
     ? hex
     : `${hex.slice(0, lead + 2)}…${hex.slice(-tail)}`;
 }
+
+/**
+ * The anonymizer's payout domain.
+ *
+ * Read from the contract rather than recomputed, because a commitment built
+ * against the wrong domain still *registers* — the contract stores whatever
+ * hash it is handed — and then can never be claimed. Getting this from the
+ * contract that will check it is the only safe direction.
+ */
+export async function getPayoutDomain(): Promise<string> {
+  const [domain] = await callContract(ANONYMIZER_ADDRESS, "get_payout_domain", []);
+  if (!domain || BigInt(domain) === 0n) {
+    throw new Error(
+      "The anonymizer returned an empty payout domain. Either it is not an " +
+        "Aperture anonymizer, or it predates v2 and cannot be used with this app.",
+    );
+  }
+  return domain;
+}

@@ -14,7 +14,7 @@ import { RpcProvider } from "starknet";
 import { willPass } from "@aperture/strk20-governance";
 import { loadConfig } from "./config.ts";
 import { ReorgedError, checkIndexerHealth } from "./discovery.ts";
-import { finalizeProposal } from "./finalize.ts";
+import { finalizeProposal, type Provenance } from "./finalize.ts";
 import { readBallotDomain, readProposal } from "./registry.ts";
 import { runTally } from "./tally.ts";
 
@@ -35,6 +35,11 @@ async function main(argv: string[]): Promise<number> {
   const args = argv.slice(2);
   const idArg = args.find((a) => !a.startsWith("--"));
   const shouldFinalize = args.includes("--finalize");
+  // Asserting a tally requires its own flag. `--finalize` alone means the
+  // number was counted; claiming that when it was typed is the thing v2's
+  // provenance exists to make visible, so it must be said explicitly.
+  const asserted = args.includes("--assert-tally");
+  const provenance: Provenance = asserted ? "operator-asserted" : "ballot-derived";
 
   if (!idArg) {
     console.error("Usage: node src/index.ts <proposal-id> [--finalize]");
@@ -134,6 +139,7 @@ async function main(argv: string[]): Promise<number> {
       against: tally.againstWeight.toString(),
       abstain: tally.abstainWeight.toString(),
     },
+    provenance,
     ballots: Object.fromEntries(
       run.perIdentity.map(({ identity, noteCount }) => [identity.choice, noteCount]),
     ),
@@ -146,7 +152,14 @@ async function main(argv: string[]): Promise<number> {
   }
 
   console.log("\nPublishing the aggregate…");
-  const receipt = await finalizeProposal(tally, config);
+  if (asserted) {
+    console.log(
+      "\n  ASSERTING this tally: recording on chain that it was entered by the\n" +
+        "  operator rather than counted from ballots. It will be publicly\n" +
+        "  labelled OperatorAsserted and bounded by the anonymizer's cap.",
+    );
+  }
+  const receipt = await finalizeProposal(run, proposal, provenance, config);
   console.log(`Finalized in ${receipt.transactionHash}`);
   return 0;
 }

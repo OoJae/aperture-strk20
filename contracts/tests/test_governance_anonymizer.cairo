@@ -618,3 +618,32 @@ fn the_commitment_binds_the_proposal() {
         Result::Err(data) => assert!(*data.at(0) == 'COMMITMENT_NOT_FOUND'),
     }
 }
+
+
+/// Pinned identically in packages/strk20-governance/tests/payout.test.ts and
+/// computed there by an independent implementation.
+///
+/// This is the test whose absence let four implementations of this hash drift
+/// apart. A drifted client still registers — the contract stores whatever hash
+/// it is given — and then can never claim, because only the claim recomputes
+/// the preimage. Two balances have been lost that way.
+#[test]
+fn commitment_matches_the_typescript_vector() {
+    let commitment = compute_commitment_hash(
+        0x1234, 1, strk(), 1000, 'a very secret preimage',
+    );
+    assert!(
+        commitment == 0xe9ed710c9e38c75880ecd742a47a3dc1e7ae641537aeb4aa00eeb361176e1c,
+        "the commitment must match the TypeScript implementation",
+    );
+}
+
+/// A fuzz test over distinct secrets passes for `hash(s) = s`. Only a fixed
+/// vector rules that out, and v1 had only the fuzz test.
+#[test]
+fn the_commitment_is_not_the_identity_function() {
+    let secret = 'a very secret preimage';
+    let commitment = compute_commitment_hash(0x1234, 1, strk(), 1000, secret);
+    assert!(commitment != secret, "the commitment must not be the secret itself");
+    assert!(commitment != 0x1234, "nor the domain");
+}

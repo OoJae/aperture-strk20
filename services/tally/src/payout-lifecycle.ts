@@ -17,14 +17,15 @@
 import { Account, RpcProvider } from "starknet";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { parseTokenAmount } from "@aperture/strk20-governance";
+import { mintPayout, parseTokenAmount } from "@aperture/strk20-governance";
 import { Open, createPrivateTransfers } from "@starkware-libs/starknet-privacy-sdk";
 import { loadConfig } from "./config.ts";
 
 const MATURITY_BLOCKS = 10;
 
-/** Mirrors PAYOUT_COMMITMENT_TAG in contracts/src/governance_anonymizer.cairo. */
-const PAYOUT_TAG = "APERTURE_PAYOUT:V1";
+// The tag and the commitment live in @aperture/strk20-governance, pinned
+// against Cairo by a vector test. They were duplicated in four places and
+// nothing compared them.
 
 /** GovernanceOperation discriminants, in declaration order. */
 const OP_REGISTER = 0;
@@ -64,11 +65,29 @@ async function main(argv: string[]): Promise<number> {
 
   // A payout is unlocked by revealing this preimage, so it is the one value
   // that must not be predictable. Random per run.
-  const secret = `0x${Buffer.from(crypto.getRandomValues(new Uint8Array(30))).toString("hex")}`;
-  const commitment = h.computePoseidonHashOnElements([
-    num.toHex(BigInt(shortString.encodeShortString(PAYOUT_TAG))),
-    secret,
-  ]);
+  // From the contract that will check it. A commitment built against the wrong
+  // domain still registers and then can never be claimed.
+  const [payoutDomain] = await (async () => {
+    const result = await provider.callContract({
+      contractAddress: anonymizer,
+      entrypoint: "get_payout_domain",
+      calldata: [],
+    });
+    return (Array.isArray(result) ? result : (result as { result: string[] }).result) as string[];
+  })();
+  if (!payoutDomain || BigInt(payoutDomain) === 0n) {
+    throw new Error(
+      `Anonymizer ${anonymizer} returned an empty payout domain; it predates v2.`,
+    );
+  }
+
+  const { ticket, commitment } = mintPayout({
+    domain: payoutDomain,
+    proposalId,
+    token,
+    amount,
+  });
+  const secret = ticket.secret;
 
   // Written to disk BEFORE anything is submitted.
   //
@@ -91,6 +110,7 @@ async function main(argv: string[]): Promise<number> {
         proposalId: proposalId.toString(),
         token,
         amount: amount.toString(),
+        domain: payoutDomain,
         commitment,
         secret,
         createdAtBlock: await provider.getBlockNumber(),
@@ -283,10 +303,14 @@ async function main(argv: string[]): Promise<number> {
           contractAddress: anonymizer,
           calldata: [
             OP_CLAIM,
+            // The contract ignores this and recomputes from the preimage.
             "0x0",
             token,
-            "0x0",
-            "0x0",
+            // Real values, not zeros. v2 binds them into the commitment, so a
+            // claim that sends zeros recomputes a hash that cannot match what
+            // registration stored — and the value is then unrecoverable.
+            num.toHex(amount),
+            num.toHex(proposalId),
             secret,
             openNotes[0]!.noteId,
           ],

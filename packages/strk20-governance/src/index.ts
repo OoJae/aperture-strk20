@@ -60,3 +60,11 @@ export { classifyReceipt, describeVerdict } from "./receipt.ts";
 export type { RawReceipt, ReceiptContext, ReceiptVerdict } from "./receipt.ts";
 
 export { AmountParseError, U128_MAX, U64_MAX, assertFits, parseTokenAmount } from "./amount.ts";
+
+export {
+  PAYOUT_TAG,
+  computePayoutCommitment,
+  generatePayoutSecret,
+  mintPayout,
+} from "./payout.ts";
+export type { PayoutTicket } from "./payout.ts";
