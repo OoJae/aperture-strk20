@@ -41,3 +41,6 @@ apps/web/out/
 
 # Payout preimages. The only thing that can open an escrowed payout; never commit.
 .payouts/
+
+# Packed tarballs from `pnpm pack`. The registry is the place for these.
+*.tgz
