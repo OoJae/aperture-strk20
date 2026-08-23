@@ -23,6 +23,7 @@ import { deriveBallotIdentity } from "@aperture/strk20-governance";
 import { parseTokenAmount } from "@aperture/strk20-governance";
 import type { Choice } from "@aperture/strk20-governance";
 import { loadConfig } from "./config.ts";
+import { ensurePoolAllowance } from "./pool-allowance.ts";
 import { readBallotDomain } from "./registry.ts";
 
 const MATURITY_BLOCKS = 10;
@@ -122,6 +123,12 @@ async function main(argv: string[]): Promise<number> {
 
   if (!registered) {
     console.log("0. Registering the voter with the pool (one time).");
+    await ensurePoolAllowance({
+      provider,
+      account,
+      pool: config.poolAddress,
+      token: config.strkTokenAddress,
+    });
     const { callAndProof } = await (transfers as never as {
       build: (o: unknown) => {
         register: () => { execute: (o: unknown) => Promise<{ callAndProof: unknown }> };
@@ -175,22 +182,49 @@ async function main(argv: string[]): Promise<number> {
   const provingBlockId = async () =>
     (await provider.getBlockNumber()) - MATURITY_BLOCKS;
 
-  const builder = () =>
-    (transfers as never as {
-      build: (o: unknown) => {
-        with: (t: string, ops: (b: unknown) => void) => {
-          execute: (o: unknown) => Promise<unknown>;
-        };
-      };
+  /**
+   * `spends` decides whether the change has somewhere to go.
+   *
+   * A deposit creates a note and spends none, so there is no change. A transfer
+   * spends whole notes and the remainder has to be named: the compiler refuses
+   * to guess, with "Surplus of N found for token X but no surplus action found".
+   * That is not a warning — nothing is built at all. Casting 5 STRK out of a
+   * 9-STRK note is the ordinary case, not an edge one.
+   */
+  const builder = (spends: boolean) => {
+    const b = (transfers as never as {
+      build: (o: unknown) => Record<string, (...a: never[]) => unknown>;
     }).build({
       autoSetup: true,
       autoDiscover: { notes: "refresh", channels: "refresh" },
       autoSelectNotes: "naive",
     });
+    return (spends
+      ? (b.surplusTo as (a: string) => typeof b)(config.operatorAddress)
+      : b) as never as {
+      with: (t: string, ops: (b: unknown) => void) => {
+        execute: (o: unknown) => Promise<unknown>;
+      };
+    };
+  };
 
+  // A rerun after a failed cast must not shield a second time: the first
+  // deposit is still there, and shielding again would double the stake for a
+  // vote that was never recorded.
+  if (process.argv.includes("--skip-shield")) {
+    console.log("1. Shielding — skipped (--skip-shield); using what is already in the pool.\n");
+  } else {
   console.log("1. Shielding — this is public: address, token and amount all show.");
+  // The pool pulls its fee and the deposit itself, so the allowance covers both.
+  await ensurePoolAllowance({
+    provider,
+    account,
+    pool: config.poolAddress,
+    token: config.strkTokenAddress,
+    plus: weight,
+  });
   const depositTx = await submit(
-    await builder()
+    await builder(false)
       .with(token, (t) => {
         (t as { deposit: (a: unknown) => unknown }).deposit({ amount: weight });
       })
@@ -199,10 +233,19 @@ async function main(argv: string[]): Promise<number> {
   console.log(`   ${depositTx}\n`);
 
   await waitBlocks(provider, MATURITY_BLOCKS);
+  }
 
   console.log("\n2. Casting the ballot — a private transfer. Nothing above shows.");
+  // Value moves between notes inside the pool, but the flat fee is still pulled
+  // from this account — and the deposit above consumed the previous allowance.
+  await ensurePoolAllowance({
+    provider,
+    account,
+    pool: config.poolAddress,
+    token: config.strkTokenAddress,
+  });
   const castTx = await submit(
-    await builder()
+    await builder(true)
       .with(token, (t) => {
         (t as { transfer: (o: unknown) => unknown }).transfer({
           recipient: identity.address,
