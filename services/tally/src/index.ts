@@ -13,8 +13,9 @@
 import { RpcProvider } from "starknet";
 import { willPass } from "@aperture/strk20-governance";
 import { loadConfig } from "./config.ts";
-import { checkIndexerHealth } from "./discovery.ts";
+import { ReorgedError, checkIndexerHealth } from "./discovery.ts";
 import { finalizeProposal } from "./finalize.ts";
+import { readProposal } from "./registry.ts";
 import { runTally } from "./tally.ts";
 
 export { loadConfig } from "./config.ts";
@@ -52,15 +53,42 @@ async function main(argv: string[]): Promise<number> {
     `Indexer healthy — head ${health.head}, ${health.lagSeconds}s behind.`,
   );
 
-  // Pin every read to one settled block so the count is reproducible by anyone
-  // re-running it against the same hash.
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
-  const head = await provider.getBlockNumber();
-  const block = await provider.getBlockWithTxHashes(head - FINALITY_LAG);
-  const blockHash = (block as { block_hash: string }).block_hash;
-  console.log(`Counting proposal ${proposalId} at block ${head - FINALITY_LAG}.\n`);
 
-  const run = await runTally(proposalId, blockHash, config);
+  // The window is on-chain, two fields from the id we already have. Not reading
+  // it meant the operator's choice of when to run this decided which notes were
+  // in scope — including ones cast long after the vote closed.
+  const proposal = await readProposal(provider, config.registryAddress, proposalId);
+  const head = await provider.getBlockNumber();
+  const settled = head - FINALITY_LAG;
+
+  if (settled < proposal.endBlock) {
+    console.error(
+      `Proposal ${proposalId} closes at block ${proposal.endBlock}; the settled ` +
+        `head is ${settled}. Counting now would miss ballots still to arrive. ` +
+        `Wait ${proposal.endBlock - settled} block(s).`,
+    );
+    return 1;
+  }
+
+  // Pin to the window's close, not to whenever this happened to run. That is
+  // what lets a third party re-run the same count from public inputs alone.
+  const pinned = proposal.endBlock;
+  const block = await provider.getBlockWithTxHashes(pinned);
+  const blockHash = (block as { block_hash?: unknown }).block_hash;
+  if (typeof blockHash !== "string") {
+    throw new Error(
+      `Block ${pinned} has no block_hash (pending?), so the count cannot be pinned. ` +
+        `Without a pin the indexer serves its own moving head and the result is ` +
+        `not reproducible.`,
+    );
+  }
+  console.log(
+    `Counting proposal ${proposalId} at block ${pinned} ` +
+      `(window ${proposal.startBlock}-${proposal.endBlock}).\n`,
+  );
+
+  const run = await runTally(proposalId, blockHash, pinned, proposal, config);
 
   for (const { identity, noteCount } of run.perIdentity) {
     console.log(
@@ -79,6 +107,29 @@ async function main(argv: string[]): Promise<number> {
       `(execution blocked — see docs/TRUST_MODEL.md)`,
   );
 
+  // The pinned block used to reach no durable record at all — the trust model
+  // rests on "anyone can re-run the same count and compare", and nothing
+  // published which block to re-run it against.
+  const countReceipt = {
+    proposalId: proposalId.toString(),
+    network: config.network,
+    registryAddress: config.registryAddress,
+    poolAddress: config.poolAddress,
+    token: config.strkTokenAddress,
+    pinnedBlockNumber: run.blockNumber,
+    pinnedBlockHash: run.blockHash,
+    window: run.window,
+    tally: {
+      for: tally.forWeight.toString(),
+      against: tally.againstWeight.toString(),
+      abstain: tally.abstainWeight.toString(),
+    },
+    ballots: Object.fromEntries(
+      run.perIdentity.map(({ identity, noteCount }) => [identity.choice, noteCount]),
+    ),
+  };
+  console.log(`\nreceipt ${JSON.stringify(countReceipt)}`);
+
   if (!shouldFinalize) {
     console.log("\nDry run. Pass --finalize to publish this aggregate on-chain.");
     return 0;
@@ -92,5 +143,16 @@ async function main(argv: string[]): Promise<number> {
 
 // Only run when invoked directly, so the module stays importable for tests.
 if (process.argv[1]?.endsWith("index.ts")) {
-  process.exit(await main(process.argv));
+  try {
+    process.exit(await main(process.argv));
+  } catch (error: unknown) {
+    // ReorgedError was raised by discovery and caught nowhere, so a reorg
+    // surfaced as an unhandled rejection rather than as the retryable
+    // condition it is.
+    if (error instanceof ReorgedError) {
+      console.error(`${error.message}\nNothing was published. Re-run against a newer settled block.`);
+      process.exit(75); // EX_TEMPFAIL — a retry is meaningful here
+    }
+    throw error;
+  }
 }

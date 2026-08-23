@@ -15,6 +15,7 @@
  */
 
 import { Account, RpcProvider } from "starknet";
+import { parseTokenAmount } from "@aperture/strk20-governance";
 import { Open, createPrivateTransfers } from "@starkware-libs/starknet-privacy-sdk";
 import { loadConfig } from "./config.ts";
 
@@ -42,7 +43,7 @@ async function main(argv: string[]): Promise<number> {
 
   const { shortString, hash: h, num } = await import("starknet");
   const proposalId = BigInt(idArg);
-  const amount = BigInt(Math.round(Number(amountArg) * 1e18));
+  const amount = parseTokenAmount(amountArg);
   const config = loadConfig();
 
   // Disclosed to the indexer in cleartext, so it is its own key rather than the

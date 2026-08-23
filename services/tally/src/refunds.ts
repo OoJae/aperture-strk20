@@ -13,7 +13,8 @@
  * not a footnote.
  */
 
-import type { BallotIdentity, BallotNote, Choice } from "@aperture/strk20-governance";
+import type { Choice } from "@aperture/strk20-governance";
+import type { DiscoveredForIdentity } from "./dedupe.ts";
 
 /** One ballot owed back to its sender. */
 export interface RefundEntry {
@@ -23,6 +24,22 @@ export interface RefundEntry {
   amount: bigint;
   /** Ballot identity the stake currently sits with. */
   from: string;
+  /**
+   * Who to pay.
+   *
+   * This field did not exist until 2026-08-23, which meant the queue was
+   * undeliverable by construction rather than merely blocked on a prover:
+   * discovery parsed each note's `sender_addr` and threw it away, so the only
+   * record of who staked a note was discarded at the single pinned read, and a
+   * spent private note's sender is not recoverable from the chain afterwards.
+   * Both README and TRUST_MODEL attributed the blockage solely to the missing
+   * prover.
+   *
+   * Note what it is: the pool channel identity that sent the note, not a public
+   * address. A refund can therefore only be a private transfer back into the
+   * pool. The queue is now addressed; it is still not payable.
+   */
+  payee: string;
 }
 
 export interface RefundQueue {
@@ -34,10 +51,11 @@ export interface RefundQueue {
 export class RefundsUnavailableError extends Error {
   constructor() {
     super(
-      "Refunds cannot be executed: issuing them requires a private transfer, " +
-        "which requires a proving service, and no proving endpoint is " +
-        "published for either network. The queue below is what would be paid. " +
-        "See docs/TRUST_MODEL.md.",
+      "Refunds cannot be executed. Issuing one is a private transfer, which " +
+        "needs a proving service; a proving endpoint answers /health on both " +
+        "networks but has not been shown to produce a proof for us. The queue " +
+        "records who each stake came from, so it is addressed — that is newer " +
+        "than the blockage and was missing for longer. See docs/TRUST_MODEL.md.",
     );
     this.name = "RefundsUnavailableError";
   }
@@ -46,30 +64,26 @@ export class RefundsUnavailableError extends Error {
 /**
  * Work out what every voter is owed.
  *
- * Deduplicates by note id for the same reason the tally does: a note seen twice
- * across paginated reads is one ballot, and refunding it twice would drain the
- * treasury rather than merely miscount.
+ * Takes already-deduplicated input. It used to dedupe here with a Set scoped
+ * across all three identities while the aggregator used one per choice, so the
+ * queue and the tally could disagree about the same set of ballots. One pass
+ * upstream now feeds both.
  */
 export function buildRefundQueue(
   proposalId: bigint,
-  notesByIdentity: ReadonlyArray<{
-    identity: BallotIdentity;
-    notes: readonly BallotNote[];
-  }>,
+  notesByIdentity: readonly DiscoveredForIdentity[],
 ): RefundQueue {
   const entries: RefundEntry[] = [];
-  const seen = new Set<string>();
   let totalAmount = 0n;
 
   for (const { identity, notes } of notesByIdentity) {
     for (const note of notes) {
-      if (seen.has(note.id)) continue;
-      seen.add(note.id);
       entries.push({
         choice: identity.choice,
         noteId: note.id,
         amount: note.amount,
         from: identity.address,
+        payee: note.payee,
       });
       totalAmount += note.amount;
     }

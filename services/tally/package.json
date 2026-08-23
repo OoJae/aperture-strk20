@@ -9,7 +9,8 @@
     "node": ">=24"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts"
   },
   "dependencies": {
     "@aperture/strk20-governance": "workspace:*",

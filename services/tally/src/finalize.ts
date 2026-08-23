@@ -10,6 +10,7 @@
  */
 
 import { Account, CallData, RpcProvider } from "starknet";
+import { U128_MAX, U64_MAX, assertFits } from "@aperture/strk20-governance";
 import type { TallyResult } from "@aperture/strk20-governance";
 import type { TallyConfig } from "./config.ts";
 
@@ -30,6 +31,14 @@ export async function finalizeProposal(
   });
 
   // Tally is a struct of three u128s; serialized in declaration order.
+  // Bound before compiling. The Cairo struct is three u128 and the id is u64;
+  // a value past those becomes a felt the deserializer rejects on-chain, after
+  // gas, with a message that names nothing.
+  assertFits("proposalId", tally.proposalId, U64_MAX);
+  assertFits("forWeight", tally.forWeight, U128_MAX);
+  assertFits("againstWeight", tally.againstWeight, U128_MAX);
+  assertFits("abstainWeight", tally.abstainWeight, U128_MAX);
+
   const calldata = CallData.compile([
     tally.proposalId.toString(),
     tally.forWeight.toString(),

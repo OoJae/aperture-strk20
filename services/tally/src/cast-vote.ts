@@ -20,6 +20,7 @@ import {
   createPrivateTransfers,
 } from "@starkware-libs/starknet-privacy-sdk";
 import { deriveBallotIdentity } from "@aperture/strk20-governance";
+import { parseTokenAmount } from "@aperture/strk20-governance";
 import type { Choice } from "@aperture/strk20-governance";
 import { loadConfig } from "./config.ts";
 
@@ -57,7 +58,7 @@ async function main(argv: string[]): Promise<number> {
   }
 
   const proposalId = BigInt(idArg);
-  const weight = BigInt(Math.round(Number(amountArg) * 1e18));
+  const weight = parseTokenAmount(amountArg);
   const config = loadConfig();
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
   const chainId = await provider.getChainId();
