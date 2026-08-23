@@ -138,6 +138,16 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     description: "ProposalRegistry on the selected network. See docs/DEPLOYMENTS.md.",
   },
   {
+    name: "APERTURE_CONFIRM",
+    requirement: "optional",
+    secret: false,
+    group: "Aperture contracts",
+    description:
+      "Must equal \"mainnet\" for any script to spend real funds or deploy to " +
+      "mainnet. A typo in a network argument must not be able to reach the live " +
+      "chain, and these contracts cannot be upgraded, paused or swept.",
+  },
+  {
     name: "APERTURE_PAYOUT_DIR",
     requirement: "optional",
     secret: false,

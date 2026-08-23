@@ -189,6 +189,10 @@ pub mod errors {
     pub const LEDGER_UNDERFLOW: felt252 = 'LEDGER_UNDERFLOW';
     pub const ZERO_DOMAIN: felt252 = 'ZERO_DOMAIN';
     pub const WRONG_PAYOUT_TOKEN: felt252 = 'WRONG_PAYOUT_TOKEN';
+    /// The stored entry disagrees with the preimage the claimant proved. Only
+    /// reachable via a registration whose commitment did not describe its own
+    /// terms, which is an attack rather than an accident.
+    pub const TERMS_MISMATCH: felt252 = 'TERMS_MISMATCH';
     pub const PAYOUT_CAP_EXCEEDED: felt252 = 'PAYOUT_CAP_EXCEEDED';
     pub const ASSERTED_CAP_EXCEEDED: felt252 = 'ASSERTED_CAP_EXCEEDED';
     pub const AMOUNT_OVERFLOW: felt252 = 'AMOUNT_OVERFLOW';
@@ -462,6 +466,25 @@ pub mod GovernanceAnonymizer {
             assert(entry.token.is_non_zero(), errors::COMMITMENT_NOT_FOUND);
             assert(!entry.claimed, errors::ALREADY_CLAIMED);
 
+            // The stored terms must be the terms just proved.
+            //
+            // `register_payout` takes `commitment_hash` as opaque calldata — it
+            // never sees the secret, so it cannot check that the hash is the
+            // hash of the entry beside it. Without these three asserts an
+            // attacker registers an entry worth 1 wei under a commitment naming
+            // 1001, then claims: the ledger is debited and the pool approved
+            // for the CALLDATA amount while only the STORED amount leaves. One
+            // wei zeroes `outstanding`, every other unclaimed payout becomes
+            // unbacked and therefore permanently unclaimable, and the
+            // difference reappears as `get_unattached` for the attacker to take.
+            //
+            // Cheap, and only ever fires on a registration that was malformed
+            // to begin with: an honest entry necessarily matches its own
+            // preimage.
+            assert(entry.amount == amount, errors::TERMS_MISMATCH);
+            assert(entry.token == token, errors::TERMS_MISMATCH);
+            assert(entry.proposal_id == proposal_id, errors::TERMS_MISMATCH);
+
             // Measured in u256 throughout. v1 narrowed the balance to u128 with
             // try_into, which turns a large but perfectly legitimate treasury
             // into a panic that bricks every claim of that token.
@@ -475,17 +498,17 @@ pub mod GovernanceAnonymizer {
             // elsewhere, converting one loud revert now into a commitment that
             // is silently unbacked forever — and with no sweep, unfixable.
             assert(held >= outstanding_before, errors::UNBACKED_PAYOUT);
-            assert(outstanding_before >= amount.into(), errors::LEDGER_UNDERFLOW);
+            assert(outstanding_before >= entry.amount.into(), errors::LEDGER_UNDERFLOW);
 
             // Effects before interaction, the ledger included: a reentrant
             // claim finds the entry taken and the ledger already decremented.
             self.payouts.write(commitment_hash, PayoutEntry { claimed: true, ..entry });
-            let outstanding_after = outstanding_before - amount.into();
+            let outstanding_after = outstanding_before - entry.amount.into();
             self.outstanding.write(entry.token, outstanding_after);
 
             // Approve, never transfer: the pool pulls with transfer_from when
             // it applies the deposit.
-            erc20.approve(pool, amount.into());
+            erc20.approve(pool, entry.amount.into());
 
             self
                 .emit(

@@ -647,3 +647,99 @@ fn the_commitment_is_not_the_identity_function() {
     assert!(commitment != secret, "the commitment must not be the secret itself");
     assert!(commitment != 0x1234, "nor the domain");
 }
+
+// --- the mismatched-registration attack -----------------------------------
+//
+// register_payout cannot verify that the commitment hash it is handed
+// describes the entry it stores beside it, because it never sees the secret.
+// That is unavoidable. What is avoidable is claim() trusting the calldata for
+// anything that moves value, which is what the v2 draft did: it debited the
+// ledger and set the pool's allowance from the CALLDATA amount while returning
+// the STORED amount to the pool.
+//
+// The suite had `the_commitment_binds_the_amount`, which only tested the honest
+// direction — claiming MORE than an honest entry holds. It passed. This is the
+// dishonest direction, and it is where the money was.
+
+#[test]
+#[should_panic(expected: 'TERMS_MISMATCH')]
+fn a_registration_whose_commitment_lies_about_its_amount_cannot_be_claimed() {
+    let (address, d) = setup();
+
+    // A commitment that names AMOUNT, stored against an entry worth 1 wei.
+    let lying_commitment = commitment_for(d, 1, AMOUNT, SECRET);
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, lying_commitment, strk(), 1, 1, 0, 0);
+
+    // Claiming with the amount the commitment names finds the 1-wei entry.
+    // Before the fix this debited `outstanding` by AMOUNT and approved the pool
+    // for AMOUNT while moving 1 wei — zeroing the ledger and stranding every
+    // other payout.
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    d.privacy_invoke(GovernanceOperation::Claim, 0, strk(), AMOUNT, 1, SECRET, NOTE_ID);
+}
+
+#[test]
+fn a_lying_registration_cannot_strand_an_honest_payout() {
+    // The consequence, stated as a property: an honest payout registered first
+    // must still be claimable after an attacker's malformed one is rejected.
+    let (address, d) = setup();
+
+    let honest = commitment_for(d, 1, AMOUNT, SECRET);
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, honest, strk(), AMOUNT, 1, 0, 0);
+    assert!(d.get_outstanding(strk()) == AMOUNT.into());
+
+    // Fund one extra wei so the attacker's registration is itself backed.
+    set_balance(address, (AMOUNT + 1).into(), Token::STRK);
+
+    let lying = commitment_for(d, 1, AMOUNT, 'another preimage');
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, lying, strk(), 1, 1, 0, 0);
+
+    let mut safe = IGovernanceAnonymizerSafeDispatcher { contract_address: address };
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    match safe
+        .privacy_invoke(GovernanceOperation::Claim, 0, strk(), AMOUNT, 1, 'another preimage', NOTE_ID) {
+        Result::Ok(_) => panic!("a commitment that lied about its amount was honoured"),
+        Result::Err(data) => assert!(*data.at(0) == 'TERMS_MISMATCH'),
+    }
+
+    // The ledger still owes the honest payout plus the attacker's own 1 wei,
+    // which is legitimately escrowed — they really did put it in. What must not
+    // have happened is the ledger being debited by the amount the commitment
+    // merely *named*.
+    assert!(
+        d.get_outstanding(strk()) == (AMOUNT + 1).into(),
+        "the ledger must reflect only what was actually escrowed",
+    );
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    let deposits = d.privacy_invoke(GovernanceOperation::Claim, 0, strk(), AMOUNT, 1, SECRET, NOTE_ID);
+    assert!(*deposits.at(0) == aperture::governance_anonymizer::OpenNoteDeposit {
+        note_id: NOTE_ID, token: strk(), amount: AMOUNT,
+    });
+    // Only the attacker's own wei remains owed.
+    assert!(d.get_outstanding(strk()) == 1);
+}
+
+#[test]
+fn a_claim_naming_the_wrong_terms_finds_no_entry_at_all() {
+    // The token and the proposal are bound into the preimage, so naming
+    // different ones recomputes a different hash and lands on an empty slot —
+    // COMMITMENT_NOT_FOUND, before TERMS_MISMATCH can be reached. The token and
+    // proposal asserts in claim() are therefore defence in depth rather than
+    // the primary guard, and only the amount assert is load-bearing: the amount
+    // is the one term register_payout stores from calldata that the payout
+    // terms do not already pin.
+    let (address, d) = setup();
+    let commitment = commitment_for(d, 1, AMOUNT, SECRET);
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, commitment, strk(), AMOUNT, 1, 0, 0);
+
+    let mut safe = IGovernanceAnonymizerSafeDispatcher { contract_address: address };
+    cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
+    match safe.privacy_invoke(GovernanceOperation::Claim, 0, strk(), AMOUNT, 2, SECRET, NOTE_ID) {
+        Result::Ok(_) => panic!("a claim naming another proposal was honoured"),
+        Result::Err(data) => assert!(*data.at(0) == 'COMMITMENT_NOT_FOUND'),
+    }
+}
