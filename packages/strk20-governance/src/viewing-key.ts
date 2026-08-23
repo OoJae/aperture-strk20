@@ -24,38 +24,43 @@ import { choiceIndex } from "./ballot.ts";
 export const MAX_VIEWING_KEY =
   0x0400000000000010ffffffffffffffffb781126dcae7b2321e66a241adc64d2fn / 2n;
 
-export const VIEWING_KEY_TAG = "APERTURE_VIEWING_KEY:V1";
+export const VIEWING_KEY_TAG = "APERTURE_VIEWING_KEY:V2";
 
 function viewingKeyTagFelt(): string {
   return num.toHex(BigInt(shortString.encodeShortString(VIEWING_KEY_TAG)));
 }
 
 /**
+ * Takes an options object rather than positional arguments on purpose. Adding
+ * `domain` positionally would let every existing call site keep compiling while
+ * silently deriving the wrong key — and a wrong viewing key does not error, it
+ * returns an empty ballot box.
+ *
  * Derive the viewing key for one ballot identity.
  *
  * Domain-separated from ballot-address derivation so the same master secret
  * cannot produce a value that is meaningful in both contexts.
  */
-export function deriveBallotViewingKey(
-  masterSecret: bigint,
-  proposalId: bigint,
-  choice: Choice,
-): bigint {
+export function deriveBallotViewingKey(args: {
+  masterSecret: bigint;
+  /** The registry's domain. Without it, two chains derive the same key. */
+  domain: string;
+  proposalId: bigint;
+  choice: Choice;
+}): bigint {
+  const { masterSecret, domain, proposalId, choice } = args;
   if (masterSecret <= 0n) {
     throw new Error("masterSecret must be a positive BigInt");
   }
-
   const raw = BigInt(
     hash.computePoseidonHashOnElements([
       viewingKeyTagFelt(),
+      domain,
       num.toHex(masterSecret),
       num.toHex(proposalId),
       num.toHex(BigInt(choiceIndex(choice))),
     ]),
   );
-
-  // Reduce into range, then avoid zero — both ends of the interval are invalid
-  // and a key of 0 would be accepted by the type system but not the protocol.
   const key = raw % MAX_VIEWING_KEY;
   return key === 0n ? 1n : key;
 }

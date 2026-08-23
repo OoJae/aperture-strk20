@@ -176,13 +176,19 @@ export function Proposals() {
           <ul className="proposals">
             {items.map(({ proposal, tally, passedOnChain }) => {
               const phase = phaseOf(proposal, BigInt(head));
-              const predicted = willPass({
-                proposalId: proposal.id,
-                forWeight: tally.forWeight,
-                againstWeight: tally.againstWeight,
-                abstainWeight: tally.abstainWeight,
-                ballotCounts: { for: 0, against: 0, abstain: 0 },
-              });
+              // The proposal's own quorum, read from the chain alongside it.
+              // Predicting with a different rule than the contract uses is how
+              // a page ends up disagreeing with the result it is displaying.
+              const predicted = willPass(
+                {
+                  proposalId: proposal.id,
+                  forWeight: tally.forWeight,
+                  againstWeight: tally.againstWeight,
+                  abstainWeight: tally.abstainWeight,
+                  ballotCounts: { for: 0, against: 0, abstain: 0 },
+                },
+                proposal.quorum,
+              );
               const disagrees = proposal.finalized && predicted !== passedOnChain;
 
               return (

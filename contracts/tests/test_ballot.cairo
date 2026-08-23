@@ -7,7 +7,9 @@
 //! implementations agreeing is what makes a ballot land where the DAO can read
 //! it. A failure here is never cosmetic.
 
-use aperture::ballot::{Choice, ballot_address, ballot_salt, choice_index, compute_address};
+use aperture::ballot::{
+    Choice, ballot_address, ballot_domain, ballot_salt, choice_index, compute_address,
+};
 
 /// The OpenZeppelin account class, whose constructor takes exactly
 /// `[public_key]` — the calldata this derivation hashes. Deriving against a
@@ -70,4 +72,64 @@ fn ballot_addresses_differ_across_choices() {
     let f = ballot_address(TEST_DOMAIN, 3, Choice::For, CLASS_HASH, MASTER_PUB);
     let a = ballot_address(TEST_DOMAIN, 3, Choice::Against, CLASS_HASH, MASTER_PUB);
     assert!(f != a, "FOR and AGAINST must be different identities");
+}
+
+
+// --- cross-language vectors, v2 -------------------------------------------
+//
+// The same numbers are pinned in packages/strk20-governance/tests/ballot.test.ts
+// and computed there by an independent implementation. Two implementations
+// agreeing on a fixed value is the only thing that makes either trustworthy;
+// asserting that three salts merely differ from each other, which is what this
+// file used to do, would pass for a derivation that was wrong in both.
+
+#[test]
+fn ballot_salt_matches_the_typescript_vector() {
+    // v1 pinned compute_address against raw salts and never pinned the Poseidon
+    // salt across languages at all.
+    assert!(
+        ballot_salt(TEST_DOMAIN, 1, Choice::For) ==
+            0x41c213dffecbb88cd6e873c6d089ed170e91459ad0e82d073a9a586b983000e,
+        "the salt must match the TypeScript implementation",
+    );
+}
+
+#[test]
+fn ballot_address_matches_the_typescript_vector() {
+    assert!(
+        ballot_address(TEST_DOMAIN, 1, Choice::For, CLASS_HASH, MASTER_PUB) ==
+            0x43f352304641b2e5e0d0e3569784bfd1ce16a5f30ff8114d3e4d5cff1d9544d
+                .try_into()
+                .unwrap(),
+        "the end-to-end address must match the TypeScript implementation",
+    );
+}
+
+#[test]
+fn the_domain_separates_chains() {
+    // The live failure this fixes: mainnet and Sepolia v1 both published
+    // 0x4ec8ba62… for proposal 1 FOR, because the salt bound neither chain nor
+    // registry.
+    let main = ballot_domain('SN_MAIN', 0x111.try_into().unwrap(), 'E1');
+    let sepolia = ballot_domain('SN_SEPOLIA', 0x111.try_into().unwrap(), 'E1');
+    assert!(main != sepolia, "two chains must not share a domain");
+    assert!(
+        ballot_address(main, 1, Choice::For, CLASS_HASH, MASTER_PUB) !=
+            ballot_address(sepolia, 1, Choice::For, CLASS_HASH, MASTER_PUB),
+        "two chains must not share a ballot address",
+    );
+}
+
+#[test]
+fn the_domain_separates_registries() {
+    let a = ballot_domain('SN_MAIN', 0x111.try_into().unwrap(), 'E1');
+    let b = ballot_domain('SN_MAIN', 0x222.try_into().unwrap(), 'E1');
+    assert!(a != b, "a redeployed registry must not reuse the old addresses");
+}
+
+#[test]
+fn the_domain_separates_epochs() {
+    let a = ballot_domain('SN_MAIN', 0x111.try_into().unwrap(), 'E1');
+    let b = ballot_domain('SN_MAIN', 0x111.try_into().unwrap(), 'E2');
+    assert!(a != b, "the epoch is the escape hatch when the address cannot change");
 }

@@ -83,6 +83,9 @@ export function aggregateNotes(
  * deliberately: an operator that predicts "passed" differently from the
  * contract would publish a misleading result.
  */
-export function willPass(tally: TallyResult): boolean {
-  return tally.forWeight > tally.againstWeight;
+export function willPass(tally: TallyResult, quorum: bigint): boolean {
+  // A pure mirror of `payout_terms` in the registry. If these two ever
+  // disagree, the operator publishes a prediction the contract rejects.
+  const turnout = tally.forWeight + tally.againstWeight + tally.abstainWeight;
+  return turnout >= quorum && tally.forWeight > tally.againstWeight;
 }

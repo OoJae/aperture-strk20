@@ -18,6 +18,7 @@
 export {
   BALLOT_TAG,
   CHOICES,
+  ballotDomain,
   ballotSalt,
   choiceIndex,
   deriveBallotIdentities,

@@ -22,6 +22,7 @@ import {
   deriveBallotViewingKey,
 } from "@aperture/strk20-governance";
 import { loadConfig } from "./config.ts";
+import { readBallotDomain } from "./registry.ts";
 
 const provingServiceUrl = process.env.PROVING_SERVICE_URL;
 
@@ -39,6 +40,8 @@ async function main(argv: string[]): Promise<number> {
   const proposalId = BigInt(idArg);
   const config = loadConfig();
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  // From the registry, so it matches the contract that publishes the addresses.
+  const domain = await readBallotDomain(provider, config.registryAddress);
   const chainId = await provider.getChainId();
 
   console.log(`Registering ballot identities for proposal ${proposalId} on ${config.network}.\n`);
@@ -47,8 +50,14 @@ async function main(argv: string[]): Promise<number> {
     const identity = deriveBallotIdentity(proposalId, choice, {
       ballotAccountClassHash: config.ballotAccountClassHash,
       daoMasterPublicKey: config.daoMasterPublicKey,
+      domain,
     });
-    const viewingKey = deriveBallotViewingKey(config.ballotViewingSeed, proposalId, choice);
+    const viewingKey = deriveBallotViewingKey({
+      masterSecret: config.ballotViewingSeed,
+      domain,
+      proposalId,
+      choice,
+    });
 
     process.stdout.write(`  ${choice.padEnd(8)} ${identity.address} … `);
 

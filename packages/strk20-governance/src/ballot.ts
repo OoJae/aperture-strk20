@@ -34,7 +34,7 @@ export const CHOICES: readonly Choice[] = ["for", "against", "abstain"];
  * Domain separator, so a ballot salt can never collide with a hash computed for
  * some other purpose over the same numbers. Matches `BALLOT_TAG` in Cairo.
  */
-export const BALLOT_TAG = "APERTURE_BALLOT:V1";
+export const BALLOT_TAG = "APERTURE_BALLOT:V2";
 
 /** Everything needed to place a proposal's ballot identities. */
 export interface BallotConfig {
@@ -42,6 +42,14 @@ export interface BallotConfig {
   ballotAccountClassHash: string;
   /** Public half of the DAO master key. */
   daoMasterPublicKey: string;
+  /**
+   * The registry's domain separator.
+   *
+   * A voter should not be handed this: they should compute it from facts they
+   * can check — which chain, which registry, which epoch — which is what
+   * `ballotDomain` is for.
+   */
+  domain: string;
 }
 
 /** A per-proposal, per-choice receiving identity. */
@@ -69,10 +77,33 @@ export function choiceIndex(choice: Choice): number {
   return index;
 }
 
-/** Deterministic salt for one proposal/choice pair. */
-export function ballotSalt(proposalId: bigint, choice: Choice): string {
+/**
+ * The separator every ballot address and viewing key hangs off.
+ *
+ * Mirrors `ballot_domain` in contracts/src/ballot.cairo. Binding the chain id
+ * is not hygiene: the v1 registries on mainnet and Sepolia shared a class hash
+ * and a master key, and the v1 salt bound neither chain nor registry, so both
+ * published the same address for the same proposal — verified against both live
+ * contracts.
+ */
+export function ballotDomain(
+  chainId: string,
+  registryAddress: string,
+  epoch: string,
+): string {
   return hash.computePoseidonHashOnElements([
     ballotTagFelt(),
+    num.toHex(BigInt(chainId)),
+    num.toHex(BigInt(registryAddress)),
+    num.toHex(BigInt(epoch)),
+  ]);
+}
+
+/** Deterministic salt for one proposal/choice pair inside one domain. */
+export function ballotSalt(domain: string, proposalId: bigint, choice: Choice): string {
+  // BALLOT_TAG is absent here because the domain already carries it.
+  return hash.computePoseidonHashOnElements([
+    domain,
     num.toHex(proposalId),
     num.toHex(BigInt(choiceIndex(choice))),
   ]);
@@ -85,7 +116,7 @@ export function deriveBallotIdentity(
   config: BallotConfig,
 ): BallotIdentity {
   const address = hash.calculateContractAddressFromHash(
-    ballotSalt(proposalId, choice),
+    ballotSalt(config.domain, proposalId, choice),
     config.ballotAccountClassHash,
     [config.daoMasterPublicKey],
     0,

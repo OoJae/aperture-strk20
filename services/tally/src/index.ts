@@ -15,7 +15,7 @@ import { willPass } from "@aperture/strk20-governance";
 import { loadConfig } from "./config.ts";
 import { ReorgedError, checkIndexerHealth } from "./discovery.ts";
 import { finalizeProposal } from "./finalize.ts";
-import { readProposal } from "./registry.ts";
+import { readBallotDomain, readProposal } from "./registry.ts";
 import { runTally } from "./tally.ts";
 
 export { loadConfig } from "./config.ts";
@@ -88,7 +88,8 @@ async function main(argv: string[]): Promise<number> {
       `(window ${proposal.startBlock}-${proposal.endBlock}).\n`,
   );
 
-  const run = await runTally(proposalId, blockHash, pinned, proposal, config);
+  const domain = await readBallotDomain(provider, config.registryAddress);
+  const run = await runTally(proposalId, blockHash, pinned, proposal, domain, config);
 
   for (const { identity, noteCount } of run.perIdentity) {
     console.log(
@@ -100,7 +101,16 @@ async function main(argv: string[]): Promise<number> {
   console.log(`\n  FOR      ${formatStrk(tally.forWeight)} STRK`);
   console.log(`  AGAINST  ${formatStrk(tally.againstWeight)} STRK`);
   console.log(`  ABSTAIN  ${formatStrk(tally.abstainWeight)} STRK`);
-  console.log(`  result   ${willPass(tally) ? "PASSES" : "does not pass"}`);
+    // The proposal's own quorum, not a guess: this line is a prediction of what
+  // the registry will decide, and a prediction the contract rejects is worse
+  // than none.
+  console.log(
+    `  quorum   ${formatStrk(proposal.quorum)} STRK ` +
+      `(turnout ${formatStrk(tally.forWeight + tally.againstWeight + tally.abstainWeight)})`,
+  );
+  console.log(
+    `  result   ${willPass(tally, proposal.quorum) ? "PASSES" : "does not pass"}`,
+  );
   console.log(
     `\n  ${run.refunds.entries.length} ballot(s) owed ` +
       `${formatStrk(run.refunds.totalAmount)} STRK in refunds ` +

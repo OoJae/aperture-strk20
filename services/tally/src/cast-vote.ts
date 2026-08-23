@@ -23,6 +23,7 @@ import { deriveBallotIdentity } from "@aperture/strk20-governance";
 import { parseTokenAmount } from "@aperture/strk20-governance";
 import type { Choice } from "@aperture/strk20-governance";
 import { loadConfig } from "./config.ts";
+import { readBallotDomain } from "./registry.ts";
 
 const MATURITY_BLOCKS = 10;
 
@@ -61,11 +62,14 @@ async function main(argv: string[]): Promise<number> {
   const weight = parseTokenAmount(amountArg);
   const config = loadConfig();
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  // From the registry, so it matches the contract that publishes the addresses.
+  const domain = await readBallotDomain(provider, config.registryAddress);
   const chainId = await provider.getChainId();
 
   const identity = deriveBallotIdentity(proposalId, choiceArg, {
     ballotAccountClassHash: config.ballotAccountClassHash,
     daoMasterPublicKey: config.daoMasterPublicKey,
+    domain,
   });
 
   console.log(`Casting ${amountArg} STRK for "${choiceArg}" on proposal ${proposalId}`);

@@ -19,7 +19,11 @@ import {
 } from "../src/ballot.ts";
 import type { BallotConfig } from "../src/ballot.ts";
 
+const TEST_DOMAIN = "0x1234";
+
 const CONFIG: BallotConfig = {
+  // Synthetic, so the pinned vectors do not churn on every redeploy.
+  domain: TEST_DOMAIN,
   /**
    * The OpenZeppelin account class, whose constructor takes exactly
    * `[public_key]` — the calldata this derivation hashes. A class with a
@@ -35,7 +39,7 @@ const CONFIG: BallotConfig = {
 
 /** Same inputs asserted in contracts/tests/test_ballot.cairo. */
 const SHARED_VECTOR_PROPOSAL_1_FOR =
-  "0x4aeed2e767949f18d459243efb6060bf1256019dbd30e336451687fa7089510";
+  "0x43f352304641b2e5e0d0e3569784bfd1ce16a5f30ff8114d3e4d5cff1d9544d";
 
 describe("ballot address derivation", () => {
   it("agrees with the Cairo implementation on the shared vector", () => {
@@ -96,10 +100,10 @@ describe("choice discriminants", () => {
 describe("ballot salt", () => {
   it("differs per choice and per proposal", () => {
     const salts = new Set([
-      ballotSalt(1n, "for"),
-      ballotSalt(1n, "against"),
-      ballotSalt(1n, "abstain"),
-      ballotSalt(2n, "for"),
+      ballotSalt(TEST_DOMAIN, 1n, "for"),
+      ballotSalt(TEST_DOMAIN, 1n, "against"),
+      ballotSalt(TEST_DOMAIN, 1n, "abstain"),
+      ballotSalt(TEST_DOMAIN, 2n, "for"),
     ]);
     assert.equal(salts.size, 4);
   });

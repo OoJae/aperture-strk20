@@ -39,6 +39,12 @@ export interface NetworkDeployment {
   readonly anonymizerClassHash: string;
   readonly ballotAccountClassHash: string;
   readonly daoMasterPublicKey: string;
+  /**
+   * Domain epoch. Part of the ballot-address derivation, so bumping it
+   * separates a redeploy that somehow lands at the same address. v1 predates
+   * the domain entirely and has none.
+   */
+  readonly epoch: string | null;
   readonly deployedAt: string;
   readonly contractVersion: "v1" | "v2";
   /**
@@ -113,6 +119,7 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
       "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
     daoMasterPublicKey:
       "0x660a41ee3edd08bd84276775ea1bed419f38ed8fe7bf4c07b522c3513a73e42",
+    epoch: null,
     deployedAt: "2026-08-17",
     contractVersion: "v1",
     indexerUrl: "https://discovery-service.alpha-mainnet.sw-dev.io",
@@ -141,6 +148,7 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
       "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
     daoMasterPublicKey:
       "0x660a41ee3edd08bd84276775ea1bed419f38ed8fe7bf4c07b522c3513a73e42",
+    epoch: null,
     deployedAt: "2026-08-17",
     contractVersion: "v1",
     indexerUrl: "https://discovery-service.alpha-sepolia.sw-dev.io",

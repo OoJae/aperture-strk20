@@ -11,8 +11,8 @@
  * drifted.
  */
 
-import { RpcProvider } from "starknet";
-import { ACTIVE, DEPLOYMENTS } from "@aperture/strk20-governance";
+import { RpcProvider, num, shortString } from "starknet";
+import { ACTIVE, DEPLOYMENTS, ballotDomain } from "@aperture/strk20-governance";
 
 export const DEPLOYMENT = DEPLOYMENTS[ACTIVE];
 
@@ -22,9 +22,31 @@ export const POOL_ADDRESS = DEPLOYMENT.pool;
 export const STRK_TOKEN = DEPLOYMENT.strkToken;
 export const VOYAGER = DEPLOYMENT.explorer;
 
+/**
+ * The domain this network's ballot addresses derive from.
+ *
+ * Computed here from three public facts — which chain, which registry, which
+ * epoch — rather than read from the contract, because that is the check: a
+ * voter who recomputes it and gets the registry's answer has verified the
+ * derivation instead of being told it.
+ *
+ * `null` for a deployment that predates the domain. v1 bound neither chain nor
+ * registry into its salt, which is why mainnet and Sepolia published the same
+ * ballot address for the same proposal.
+ */
+export const BALLOT_DOMAIN =
+  DEPLOYMENT.epoch === null
+    ? null
+    : ballotDomain(
+        num.toHex(BigInt(shortString.encodeShortString(DEPLOYMENT.chainId))),
+        DEPLOYMENT.registry,
+        num.toHex(BigInt(shortString.encodeShortString(DEPLOYMENT.epoch))),
+      );
+
 export const BALLOT_CONFIG = {
   ballotAccountClassHash: DEPLOYMENT.ballotAccountClassHash,
   daoMasterPublicKey: DEPLOYMENT.daoMasterPublicKey,
+  domain: BALLOT_DOMAIN ?? "0x0",
 };
 
 const RPC_TIMEOUT_MS = 12_000;
@@ -108,6 +130,11 @@ export interface Proposal {
   startBlock: bigint;
   endBlock: bigint;
   finalized: boolean;
+  // v2 appended these, so the indices above keep their meaning and a client
+  // reading a v1 registry gets zeroes rather than misaligned fields.
+  quorum: bigint;
+  payoutToken: string;
+  payoutCap: bigint;
 }
 
 export interface Tally {
@@ -130,6 +157,9 @@ export async function getProposal(id: bigint): Promise<Proposal> {
     startBlock: toBigInt(raw[2]),
     endBlock: toBigInt(raw[3]),
     finalized: toBigInt(raw[4]) === 1n,
+    quorum: raw[5] === undefined ? 0n : toBigInt(raw[5]),
+    payoutToken: raw[6] ?? "0x0",
+    payoutCap: raw[7] === undefined ? 0n : toBigInt(raw[7]),
   };
 }
 

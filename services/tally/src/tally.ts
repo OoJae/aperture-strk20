@@ -43,11 +43,14 @@ export async function runTally(
   blockHash: string,
   blockNumber: number,
   proposal: ProposalWindow,
+  /** Read from the registry, not recomputed: it must match the contract. */
+  domain: string,
   config: TallyConfig,
 ): Promise<TallyRun> {
   const identities = deriveBallotIdentities(proposalId, {
     ballotAccountClassHash: config.ballotAccountClassHash,
     daoMasterPublicKey: config.daoMasterPublicKey,
+    domain,
   });
 
   const options: DiscoveryOptions = {
@@ -63,11 +66,12 @@ export async function runTally(
   // ordering cannot change the result.
   const discovered = await Promise.all(
     identities.map(async (identity) => {
-      const viewingKey = deriveBallotViewingKey(
-        config.ballotViewingSeed,
+      const viewingKey = deriveBallotViewingKey({
+        masterSecret: config.ballotViewingSeed,
+        domain,
         proposalId,
-        identity.choice,
-      );
+        choice: identity.choice,
+      });
       const notes = await discoverReceivedNotes(identity, viewingKey, options);
       return { identity, notes };
     }),

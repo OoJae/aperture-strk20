@@ -80,12 +80,12 @@ describe("aggregateNotes", () => {
 
 describe("willPass", () => {
   it("passes when for outweighs against", () => {
-    assert.equal(willPass(aggregateNotes(1n, { for: [note("a", 2n)] })), true);
+    assert.equal(willPass(aggregateNotes(1n, { for: [note("a", 2n)] }), 0n), true);
   });
 
   it("fails when against outweighs for", () => {
     assert.equal(
-      willPass(aggregateNotes(1n, { against: [note("a", 2n)] })),
+      willPass(aggregateNotes(1n, { against: [note("a", 2n)] }), 0n),
       false,
     );
   });
@@ -96,7 +96,7 @@ describe("willPass", () => {
       for: [note("a", 500n)],
       against: [note("b", 500n)],
     });
-    assert.equal(willPass(tally), false);
+    assert.equal(willPass(tally, 0n), false);
   });
 
   it("ignores abstentions", () => {
@@ -104,6 +104,31 @@ describe("willPass", () => {
       for: [note("a", 1n)],
       abstain: [note("b", 10n ** 9n)],
     });
-    assert.equal(willPass(tally), true);
+    assert.equal(willPass(tally, 0n), true);
+  });
+});
+
+describe("willPass and quorum", () => {
+  // v2 added a turnout floor, and this mirror has to move with the contract:
+  // an operator publishing a prediction the registry rejects is worse than no
+  // prediction at all.
+  it("fails when turnout is below quorum, however lopsided the vote", () => {
+    const tally = aggregateNotes(1n, { for: [note("a", 100n)] });
+    assert.equal(willPass(tally, 1_000n), false);
+  });
+
+  it("passes when turnout is exactly at quorum", () => {
+    const tally = aggregateNotes(1n, { for: [note("a", 100n)] });
+    assert.equal(willPass(tally, 100n), true);
+  });
+
+  it("counts abstain toward turnout", () => {
+    // A staked abstain is participation. Excluding it would fail a quorum on
+    // ballots that were actually cast.
+    const tally = aggregateNotes(1n, {
+      for: [note("a", 60n)],
+      abstain: [note("b", 40n)],
+    });
+    assert.equal(willPass(tally, 100n), true);
   });
 });
