@@ -1,56 +1,105 @@
 /**
- * Reading Aperture's mainnet state from the browser.
+ * Reading Aperture's state from the browser.
  *
- * Everything here is a public read against a keyless RPC. That is deliberate:
- * the app is a static bundle, so any key placed here would ship to every
- * visitor. It also means someone can open the demo with no wallet, no
- * extension, and no account and still see the real contract state.
+ * Everything here is a public read against keyless RPC. That is deliberate: the
+ * app is a static bundle, so any key placed here would ship to every visitor.
+ * It also means someone can open the demo with no wallet, no extension, and no
+ * account and still see real contract state.
+ *
+ * Addresses come from the shared package, never from literals in this file.
+ * When they lived here, four other files carried their own copies and the set
+ * drifted.
  */
 
 import { RpcProvider } from "starknet";
+import { ACTIVE, DEPLOYMENTS } from "@aperture/strk20-governance";
 
-/** Deployed 2026-08-17. See docs/DEPLOYMENTS.md. */
-export const REGISTRY_ADDRESS =
-  "0x0371e11c7cae61bc2fd5ce6b75153d59746ecf2d88b286be6ebe9c7c001e330c";
+export const DEPLOYMENT = DEPLOYMENTS[ACTIVE];
 
-export const ANONYMIZER_ADDRESS =
-  "0x05cc31d13d5901347d009f70f59abacb22b76e84963286004b67bf4644546890";
+export const REGISTRY_ADDRESS = DEPLOYMENT.registry;
+export const ANONYMIZER_ADDRESS = DEPLOYMENT.anonymizer;
+export const POOL_ADDRESS = DEPLOYMENT.pool;
+export const STRK_TOKEN = DEPLOYMENT.strkToken;
+export const VOYAGER = DEPLOYMENT.explorer;
 
-export const POOL_ADDRESS =
-  "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a";
-
-/** The ballot config the mainnet registry was constructed with. */
 export const BALLOT_CONFIG = {
-  ballotAccountClassHash:
-    "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
-  daoMasterPublicKey:
-    "0x660a41ee3edd08bd84276775ea1bed419f38ed8fe7bf4c07b522c3513a73e42",
+  ballotAccountClassHash: DEPLOYMENT.ballotAccountClassHash,
+  daoMasterPublicKey: DEPLOYMENT.daoMasterPublicKey,
 };
 
-/** Keyless public endpoint — nothing secret can be embedded in a static bundle. */
-const RPC_URL = "https://starknet-rpc.publicnode.com";
+const RPC_TIMEOUT_MS = 12_000;
 
-export const VOYAGER = "https://voyager.online";
+/**
+ * One provider per endpoint, not one per call. The previous version constructed
+ * a fresh RpcProvider inside every read, which meant roughly eight of them on a
+ * single page load.
+ */
+const providers = new Map<string, RpcProvider>();
 
+function providerFor(url: string): RpcProvider {
+  let cached = providers.get(url);
+  if (!cached) {
+    cached = new RpcProvider({
+      nodeUrl: url,
+      // A real cancellation. Without a signal a stalled endpoint hangs the read
+      // forever and the page sits on "Reading mainnet…" with no way out.
+      baseFetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        fetch(input, { ...init, signal: AbortSignal.timeout(RPC_TIMEOUT_MS) }),
+    });
+    providers.set(url, cached);
+  }
+  return cached;
+}
+
+/** Every endpoint failed. Carries what was tried, so the UI can say. */
+export class RpcUnavailableError extends Error {
+  constructor(readonly attempts: readonly { url: string; reason: string }[]) {
+    super(
+      `Could not reach ${DEPLOYMENT.label}. Tried ${attempts.length} endpoint(s): ` +
+        attempts.map((a) => `${new URL(a.url).host} (${a.reason})`).join(", "),
+    );
+    this.name = "RpcUnavailableError";
+  }
+}
+
+/**
+ * Run a read against each endpoint in turn. A single free RPC rate-limiting
+ * during judging is a real failure mode, and the app has no key to fall back on.
+ */
+export async function readChain<T>(fn: (p: RpcProvider) => Promise<T>): Promise<T> {
+  const attempts: { url: string; reason: string }[] = [];
+  for (const url of DEPLOYMENT.rpcUrls) {
+    try {
+      return await fn(providerFor(url));
+    } catch (error) {
+      attempts.push({ url, reason: error instanceof Error ? error.message : "unknown" });
+    }
+  }
+  throw new RpcUnavailableError(attempts);
+}
+
+/** Kept for the wallet path, which needs a provider instance rather than a read. */
 export function provider(): RpcProvider {
-  return new RpcProvider({ nodeUrl: RPC_URL });
+  return providerFor(DEPLOYMENT.rpcUrls[0]!);
 }
 
 function toBigInt(value: unknown): bigint {
   return BigInt(value as string);
 }
 
-async function callRegistry(
+async function callContract(
+  contractAddress: string,
   entrypoint: string,
   calldata: string[] = [],
 ): Promise<string[]> {
-  const result = await provider().callContract({
-    contractAddress: REGISTRY_ADDRESS,
-    entrypoint,
-    calldata,
+  return readChain(async (p) => {
+    const result = await p.callContract({ contractAddress, entrypoint, calldata });
+    return (Array.isArray(result) ? result : (result as { result: string[] }).result) as string[];
   });
-  return (Array.isArray(result) ? result : (result as { result: string[] }).result) as string[];
 }
+
+const callRegistry = (entrypoint: string, calldata: string[] = []) =>
+  callContract(REGISTRY_ADDRESS, entrypoint, calldata);
 
 export interface Proposal {
   id: bigint;
@@ -93,6 +142,15 @@ export async function getTally(id: bigint): Promise<Tally> {
   };
 }
 
+/**
+ * The contract's own verdict, rather than the client's recomputation of it.
+ * The page shows both: if they disagree, that is worth seeing.
+ */
+export async function hasPassed(id: bigint): Promise<boolean> {
+  const [passed] = await callRegistry("has_passed", [id.toString()]);
+  return toBigInt(passed) === 1n;
+}
+
 /** The registry's own derivation, for comparison against the client's. */
 export async function getBallotAddressOnChain(
   id: bigint,
@@ -105,8 +163,38 @@ export async function getBallotAddressOnChain(
   return address!;
 }
 
+/**
+ * Whether a contract exists at an address.
+ *
+ * This is the question the ballot-identity table was never asking. It compared
+ * two derivations of the same address and called agreement a "match", which is
+ * true and almost meaningless — both sides derive from the same public inputs,
+ * so they agree on every network whether or not anything is deployed.
+ */
+export async function isDeployed(address: string): Promise<boolean> {
+  try {
+    await readChain((p) => p.getClassHashAt(address, "latest"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the pool holds a viewing key for this address. Without one, a private
+ * transfer to it cannot be read by anybody, including its owner.
+ */
+export async function isRegisteredWithPool(address: string): Promise<boolean> {
+  try {
+    const [key] = await callContract(POOL_ADDRESS, "get_public_key", [address]);
+    return toBigInt(key) !== 0n;
+  } catch {
+    return false;
+  }
+}
+
 export async function getBlockNumber(): Promise<number> {
-  return provider().getBlockNumber();
+  return readChain((p) => p.getBlockNumber());
 }
 
 /** Short-string felt (e.g. a metadata pointer) back to text, best effort. */

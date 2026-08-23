@@ -71,30 +71,22 @@ export function buildRegisterPayoutActions(p: PayoutParams): unknown[] {
   ];
 }
 
-/**
- * Move treasury value into the anonymizer, without invoking it.
+/*
+ * `buildFundAnonymizerActions` was removed deliberately.
  *
- * The full payout above spends a note, withdraws to the helper, calls its
- * `privacy_invoke`, and returns change — five phases for the pool to prove. It
- * works, and there is one on mainnet to show for it, but the wallet's proving
- * relay has repeatedly timed out on it while handling simpler transactions for
- * other users fine.
+ * It withdrew from the pool to the anonymizer and invoked nothing — described
+ * here, once, as "the first half on its own" and "about as cheap as a pool
+ * transaction gets". Both were true and both were beside the point:
  *
- * This is the first half on its own: a plain withdrawal whose recipient happens
- * to be our contract. Structurally it is the unshield that worked on day one,
- * so it is about as cheap as a pool transaction gets, and it still funds the
- * treasury helper for a payout registered later.
+ *   - Value that arrives without a commitment registered in the same pool
+ *     transaction is unattached. The anonymizer has no sweep, no owner and no
+ *     `transfer` in its ERC20 interface, so nobody can ever move it again. This
+ *     is how 14 STRK became permanently locked on mainnet.
+ *   - Once payouts are bound to their proposal's published terms, unattached
+ *     value standing in the helper is also claimable by anyone who registers a
+ *     commitment against it, up to the authorising proposal's remaining cap.
  *
- * An invoke with no accompanying value movement is *not* an option — the wallet
- * rejects that outright as an invalid payload.
+ * There is no contract-side fix: nothing lets `register_payout` distinguish
+ * value that arrived in this transaction from value that was already there.
+ * Withdraw and invoke stay atomic, which means this builder does not exist.
  */
-export function buildFundAnonymizerActions(p: PayoutParams): unknown[] {
-  return [
-    {
-      type: "withdraw",
-      token: felt(p.token),
-      amount: felt(p.amount),
-      recipient: felt(ANONYMIZER_ADDRESS),
-    },
-  ];
-}

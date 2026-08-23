@@ -1,35 +1,41 @@
 "use client";
 
 /**
- * Executing a treasury payout on mainnet, through Aperture's own anonymizer.
+ * Executing a treasury payout, through Aperture's own anonymizer.
  *
  * Everything else on this page is a read. This is the one control that writes,
- * and it is deliberately explicit about what it will do before it does it: a
- * payout spends real STRK and cannot be undone.
+ * it spends real STRK, and it cannot be undone — so it says what it will do
+ * before it does it, and afterwards it says only what it can prove.
+ *
+ * Three things this component used to get wrong, each fixed below:
+ *
+ *   - It reported success from a transaction hash alone. A hash means accepted,
+ *     not executed; a reverted transaction rendered "Payout registered."
+ *   - Its timeout claimed "Nothing was submitted and no fee was charged", which
+ *     it had no way to know: a Promise.race abandons the wallet call, it does
+ *     not cancel it.
+ *   - It told the user their preimage "can claim the payout" when no claim has
+ *     ever succeeded on any network.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { hash, num, shortString } from "starknet";
 import { walletV6 } from "starknet";
-import { ANONYMIZER_ADDRESS, VOYAGER, shortHex } from "../lib/chain.ts";
+import { DEMO, classifyReceipt } from "@aperture/strk20-governance";
 import {
-  PAYOUT_TAG,
-  buildFundAnonymizerActions,
-  buildRegisterPayoutActions,
-} from "../lib/payout.ts";
-
-const STRK = "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
-
-/** Proposal 2 on the mainnet registry — finalized and passed. */
-const PROPOSAL_ID = 2n;
-const AMOUNT = 2n * 10n ** 18n;
-
-/**
- * Deliberately small. The pool's flat fee dwarfs it either way, and a smaller
- * withdrawal selects fewer notes — which is the other thing that makes a proof
- * expensive to produce.
- */
-const FUND_AMOUNT = 1n * 10n ** 18n;
+  ANONYMIZER_ADDRESS,
+  DEPLOYMENT,
+  POOL_ADDRESS,
+  REGISTRY_ADDRESS,
+  STRK_TOKEN,
+  VOYAGER,
+  hasPassed,
+  provider,
+  readChain,
+  shortHex,
+} from "../lib/chain.ts";
+import { formatWeight } from "../lib/format.ts";
+import { PAYOUT_TAG, buildRegisterPayoutActions } from "../lib/payout.ts";
 
 /** STRK20 landed in Wallet API 0.10.3; below that the call does not exist. */
 function supportsStrk20(versions: string[]): boolean {
@@ -40,76 +46,151 @@ function supportsStrk20(versions: string[]): boolean {
 }
 
 /**
- * Proving normally takes about half a minute. The wallet's proving relay has
- * been known to hang rather than fail, and an unbounded await leaves the page
- * spinning forever with nothing to act on — so give up and say so.
+ * Proving normally takes about half a minute, but the wallet's relay has been
+ * known to hang rather than fail. This deadline stops the page waiting forever.
+ *
+ * Named for what it does: it stops *us* waiting. It does not stop the wallet,
+ * which may still prove and submit afterwards — which is why the copy on this
+ * path never claims nothing was sent.
  */
-const PROVING_TIMEOUT_MS = 180_000;
+const PROVING_DEADLINE_MS = 180_000;
 
-function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+function raceDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     work,
     new Promise<T>((_, reject) =>
-      setTimeout(
-        () =>
-          reject(
-            new Error(
-              "The wallet's proving service did not respond within three minutes. " +
-                "Nothing was submitted and no fee was charged — this is usually " +
-                "the relay being unavailable rather than anything wrong here. Try again later.",
-            ),
-          ),
-        ms,
-      ),
+      setTimeout(() => reject(new DeadlineError()), ms),
     ),
   ]);
 }
 
-type Mode = "payout" | "fund";
+class DeadlineError extends Error {
+  constructor() {
+    super("deadline");
+    this.name = "DeadlineError";
+  }
+}
 
 type State =
   | { kind: "idle" }
   | { kind: "working"; note: string }
-  /**
-   * The mode is carried through so the result can describe what actually
-   * happened. Funding the anonymizer registers no commitment, so reporting a
-   * payout — and handing over a preimage that opens nothing — would be a lie
-   * told in the one place a user is most likely to believe it.
-   */
-  | { kind: "done"; mode: Mode; hash: string; secret: string }
+  | { kind: "confirming"; hash: string }
+  | { kind: "registered"; hash: string; block?: number; secret: string; commitment: string }
+  | { kind: "reverted"; hash: string; reason?: string }
+  | { kind: "unknown"; message: string }
   | { kind: "error"; message: string };
+
+const STORAGE_PREFIX = "aperture:payout:";
 
 export function TreasuryPayout() {
   const [state, setState] = useState<State>({ kind: "idle" });
+  const [proposalPassed, setProposalPassed] = useState<boolean>();
+  const [recoverHash, setRecoverHash] = useState("");
+  const outcomeRef = useRef<HTMLDivElement>(null);
 
-  async function run(mode: "payout" | "fund") {
+  const busy = state.kind === "working" || state.kind === "confirming";
+  const amount = formatWeight(DEMO.payoutAmount);
+
+  /**
+   * `register_payout` asserts the proposal passed. Reading that first means a
+   * user does not pay a pool fee to discover PROPOSAL_NOT_PASSED.
+   */
+  useEffect(() => {
+    hasPassed(DEMO.payoutProposalId).then(setProposalPassed).catch(() => setProposalPassed(undefined));
+  }, []);
+
+  /** Move focus to the outcome so a screen reader lands on the result. */
+  useEffect(() => {
+    if (["registered", "reverted", "unknown", "error"].includes(state.kind)) {
+      outcomeRef.current?.focus();
+    }
+  }, [state.kind]);
+
+  async function confirm(txHash: string, secret?: string, commitment?: string): Promise<void> {
+    setState({ kind: "confirming", hash: txHash });
+    try {
+      const receipt = await readChain((p) => p.waitForTransaction(txHash, { retryInterval: 3_000 }));
+      const verdict = classifyReceipt(receipt as never, {
+        pool: POOL_ADDRESS,
+        registry: REGISTRY_ADDRESS,
+        anonymizer: ANONYMIZER_ADDRESS,
+      });
+
+      if (!verdict.succeeded) {
+        setState({ kind: "reverted", hash: txHash, reason: verdict.revertReason });
+        return;
+      }
+      if (verdict.ourEvents.length === 0) {
+        setState({
+          kind: "unknown",
+          message:
+            `Transaction ${shortHex(txHash, 10, 6)} succeeded, but it emitted no event ` +
+            `from GovernanceAnonymizer. Value may have moved into the anonymizer without ` +
+            `a payout being registered against it — which nobody can recover.`,
+        });
+        return;
+      }
+      setState({
+        kind: "registered",
+        hash: txHash,
+        block: verdict.blockNumber,
+        secret: secret ?? "(not generated in this browser)",
+        commitment: commitment ?? "",
+      });
+    } catch (error) {
+      setState({
+        kind: "unknown",
+        message:
+          `Could not confirm ${shortHex(txHash, 10, 6)} against the chain: ` +
+          `${error instanceof Error ? error.message : "unknown error"}. The transaction may ` +
+          `still be valid — check it on Voyager.`,
+      });
+    }
+  }
+
+  async function run(): Promise<void> {
     try {
       setState({ kind: "working", note: "connecting" });
 
-      const store = (
-        await import("@starknet-io/get-starknet-discovery")
-      ).createStore({ eip1193Adapters: [] });
-      const wallet = store
-        .getWallets()
-        .find((w: { name?: string }) => /ready|argent/i.test(w.name ?? ""));
-      if (!wallet) throw new Error("No Ready wallet found. Install it and reload.");
+      const store = (await import("@starknet-io/get-starknet-discovery")).createStore({
+        eip1193Adapters: [],
+      });
 
-      await walletV6.requestAccounts(wallet as never);
+      // Capability, not brand. Filtering on /ready|argent/ told every other
+      // Starknet wallet that it did not exist.
+      const candidates = store.getWallets() as { name?: string }[];
+      if (candidates.length === 0) {
+        throw new Error("No Starknet wallet found in this browser. Install one and reload.");
+      }
 
-      const versions = (await walletV6.supportedWalletApi(wallet as never)) as string[];
-      if (!supportsStrk20(versions)) {
+      let wallet: unknown;
+      const rejected: string[] = [];
+      for (const candidate of candidates) {
+        try {
+          await walletV6.requestAccounts(candidate as never);
+          const versions = (await walletV6.supportedWalletApi(candidate as never)) as string[];
+          if (supportsStrk20(versions)) {
+            wallet = candidate;
+            break;
+          }
+          rejected.push(`${candidate.name ?? "unnamed"} (Wallet API ${versions.join(", ")})`);
+        } catch {
+          rejected.push(`${candidate.name ?? "unnamed"} (declined)`);
+        }
+      }
+      if (!wallet) {
         throw new Error(
-          `This wallet advertises Wallet API ${versions.join(", ")}; STRK20 needs 0.10.3 or newer.`,
+          `STRK20 needs Wallet API 0.10.3 or newer. Wallets found: ${rejected.join("; ")}.`,
         );
       }
 
       const chainId = await walletV6.requestChainId(wallet as never);
-      if (BigInt(chainId) !== BigInt(shortString.encodeShortString("SN_MAIN"))) {
-        throw new Error("Switch the wallet to Mainnet — this payout runs against the live pool.");
+      if (BigInt(chainId) !== BigInt(shortString.encodeShortString(DEPLOYMENT.chainId))) {
+        throw new Error(
+          `Switch the wallet to ${DEPLOYMENT.label} — this payout runs against the live pool.`,
+        );
       }
 
-      // The preimage is the only thing that can later open this payout, so it
-      // is generated here and shown once. Nothing derived from it is stored.
       setState({ kind: "working", note: "building the call" });
       const bytes = crypto.getRandomValues(new Uint8Array(30));
       const secret = `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
@@ -118,45 +199,60 @@ export function TreasuryPayout() {
         secret,
       ]);
 
-      const params = {
-        token: STRK,
-        amount: AMOUNT,
-        proposalId: PROPOSAL_ID,
+      // Written BEFORE submitting. A crash between submit and render used to
+      // lose the preimage permanently, which is exactly how value became
+      // unrecoverable on mainnet.
+      try {
+        sessionStorage.setItem(
+          `${STORAGE_PREFIX}${commitment}`,
+          JSON.stringify({ secret, commitment, amount: DEMO.payoutAmount.toString() }),
+        );
+      } catch {
+        /* private browsing; the preimage is still shown on screen */
+      }
+
+      const actions = buildRegisterPayoutActions({
+        token: STRK_TOKEN,
+        amount: DEMO.payoutAmount,
+        proposalId: DEMO.payoutProposalId,
         commitment,
-      };
-      const actions =
-        mode === "payout"
-          ? buildRegisterPayoutActions(params)
-          : buildFundAnonymizerActions({ ...params, amount: FUND_AMOUNT });
+      });
 
       setState({ kind: "working", note: "proving — this takes about half a minute" });
       const { WalletAccountV6 } = await import("starknet");
-      const { RpcProvider } = await import("starknet");
-      const account = await WalletAccountV6.connect(
-        new RpcProvider({ nodeUrl: "https://starknet-rpc.publicnode.com" }) as never,
-        wallet as never,
-      );
+      const account = await WalletAccountV6.connect(provider() as never, wallet as never);
 
-      const result = await withTimeout(
+      const result = await raceDeadline(
         (
           account as unknown as {
             strk20InvokeTransaction: (a: unknown[]) => Promise<{ transaction_hash: string }>;
           }
         ).strk20InvokeTransaction(actions),
-        PROVING_TIMEOUT_MS,
+        PROVING_DEADLINE_MS,
       );
 
-      setState({ kind: "done", mode, hash: result.transaction_hash, secret });
-    } catch (e) {
+      await confirm(result.transaction_hash, secret, commitment);
+    } catch (error) {
+      if (error instanceof DeadlineError) {
+        setState({
+          kind: "unknown",
+          message:
+            "The wallet did not respond within three minutes. This does not mean nothing " +
+            "was submitted — the wallet may still be proving, and a transaction may land " +
+            "after this message. Check your wallet's activity; if you have a hash, paste " +
+            "it below and this page will confirm it against the chain.",
+        });
+        return;
+      }
       setState({
         kind: "error",
-        message: e instanceof Error ? e.message : "something went wrong",
+        message: error instanceof Error ? error.message : "something went wrong",
       });
     }
   }
 
   return (
-    <section className="panel">
+    <section className="panel" aria-busy={busy}>
       <h2>Execute a treasury payout</h2>
       <p className="lede">
         The pool withdraws to{" "}
@@ -174,56 +270,108 @@ export function TreasuryPayout() {
       </p>
 
       <p className="small dim">
-        Real STRK on mainnet: <strong>2 STRK</strong> for the payout plus the
-        pool&rsquo;s flat fee. Your wallet will ask twice, and proving takes
+        Real STRK on {DEPLOYMENT.label}: <strong>{amount.display}</strong> for
+        the payout, plus the pool&rsquo;s flat fee, both taken from your{" "}
+        <em>shielded</em> balance. You need that balance already; this page
+        cannot shield for you. Your wallet will ask twice, and proving takes
         roughly thirty seconds.
       </p>
 
-      {state.kind === "idle" ? (
-        <div className="actions">
-          <button className="cta" onClick={() => run("payout")}>
-            Register a 2 STRK payout
-          </button>
-          <button className="cta secondary" onClick={() => run("fund")}>
-            Fund the anonymizer with 1 STRK
-          </button>
-        </div>
+      {proposalPassed === false ? (
+        <p className="banner-danger" role="alert">
+          Proposal #{DEMO.payoutProposalId.toString()} has not passed on{" "}
+          {DEPLOYMENT.label}, and the anonymizer asserts that it has before it
+          will register anything. This payout would revert.
+        </p>
       ) : null}
 
-      <p className="small dim">
-        The first runs the whole payout — five phases for the pool to prove. The
-        second moves treasury value into the anonymizer and nothing else, which
-        is about as cheap as a pool transaction gets; use it when the
-        wallet&rsquo;s proving relay is refusing the longer one.
-      </p>
+      <div className="actions">
+        <button type="button" className="cta" onClick={run} disabled={busy || proposalPassed === false}>
+          Register a {amount.display} payout
+        </button>
+        {state.kind !== "idle" && !busy ? (
+          <button type="button" className="cta secondary" onClick={() => setState({ kind: "idle" })}>
+            Start over
+          </button>
+        ) : null}
+      </div>
 
-      {state.kind === "working" ? <p className="dim">{state.note}…</p> : null}
-
-      {state.kind === "error" ? <p className="bad">{state.message}</p> : null}
-
-      {state.kind === "done" ? (
-        <div>
-          <p className="ok">
-            {state.mode === "payout"
-              ? "Payout registered."
-              : "Treasury funded. The anonymizer now holds the value; no payout was registered."}
-          </p>
-          <p className="small">
-            <a href={`${VOYAGER}/tx/${state.hash}`} target="_blank" rel="noreferrer">
-              {shortHex(state.hash, 12, 8)}
-            </a>
-          </p>
-          {state.mode === "payout" ? (
-            <>
-              <p className="small bad">
-                Save this preimage — it is the only thing that can claim the
-                payout, and it is not stored anywhere:
-              </p>
-              <p className="mono small">{state.secret}</p>
-            </>
-          ) : null}
-        </div>
+      {busy ? (
+        <p className="dim" role="status" aria-live="polite">
+          {state.kind === "working" ? `${state.note}…` : `confirming ${shortHex(state.hash, 10, 6)} on chain…`}
+        </p>
       ) : null}
+
+      <div ref={outcomeRef} tabIndex={-1}>
+        {state.kind === "registered" ? (
+          <div role="status" aria-live="polite">
+            <p className="ok">
+              Payout registered — confirmed by a <span className="mono">PayoutRegistered</span>{" "}
+              event from GovernanceAnonymizer
+              {state.block ? ` in block ${state.block.toLocaleString()}` : ""}.
+            </p>
+            <p className="small">
+              <a href={`${VOYAGER}/tx/${state.hash}`} target="_blank" rel="noreferrer">
+                {shortHex(state.hash, 12, 8)}
+              </a>
+            </p>
+            <p className="small">Save this preimage. It is not stored on any server:</p>
+            <p className="mono small">{state.secret}</p>
+            <p className="banner-danger small">
+              <strong>No claim has ever succeeded, on any network.</strong> The
+              claim leg fails with <span className="mono">NON_ZERO_VALUE</span>{" "}
+              and is unfinished. Treat this payout as unrecoverable until that
+              sentence changes: 14 STRK is already permanently locked in this
+              contract because earlier preimages were shown once and never saved,
+              and it has no sweep function and no owner.
+            </p>
+          </div>
+        ) : null}
+
+        {state.kind === "reverted" ? (
+          <div role="alert">
+            <p className="bad">
+              The transaction reverted on chain. Nothing was paid out, and the
+              pool&rsquo;s fee was still charged.
+            </p>
+            {state.reason ? <p className="mono small">{state.reason}</p> : null}
+            <p className="small">
+              <a href={`${VOYAGER}/tx/${state.hash}`} target="_blank" rel="noreferrer">
+                {shortHex(state.hash, 12, 8)}
+              </a>
+            </p>
+          </div>
+        ) : null}
+
+        {state.kind === "unknown" ? (
+          <div role="alert">
+            <p className="bad">{state.message}</p>
+            <div className="actions">
+              <input
+                className="mono"
+                aria-label="Transaction hash to confirm"
+                placeholder="0x… transaction hash"
+                value={recoverHash}
+                onChange={(e) => setRecoverHash(e.target.value)}
+              />
+              <button
+                type="button"
+                className="cta"
+                disabled={!/^0x[0-9a-fA-F]{1,64}$/.test(recoverHash.trim())}
+                onClick={() => confirm(recoverHash.trim())}
+              >
+                Confirm it
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {state.kind === "error" ? (
+          <p className="bad" role="alert">
+            {state.message}
+          </p>
+        ) : null}
+      </div>
     </section>
   );
 }

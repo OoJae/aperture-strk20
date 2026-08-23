@@ -13,7 +13,10 @@
   --film: #131419;
   --ink: #eae7e1;
   --safelight: #ff3b18;
-  --latent: #6e7079;
+  /* 4.63:1 on --void. The previous #6e7079 measured 4.01:1 and failed WCAG AA
+     at all fourteen places it is used — every explanatory paragraph, every
+     nav link, and the label on a button that spends real mainnet STRK. */
+  --latent: #787a83;
   /* State only — a passing tally, a healthy check. Never decoration; the
      safelight stays the only expressive colour on the site. */
   --signal: #4ade80;
@@ -881,4 +884,75 @@ main {
 .block > *,
 .shell > * {
   min-width: 0;
+}
+
+/* ── Verification and disclosure ────────────────────────────────────── */
+
+/* A scroll container the keyboard can actually reach. Without tabindex the
+   app's self-described centrepiece is unscrollable without a mouse. */
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.table-scroll:focus-visible {
+  outline: 2px solid var(--safelight);
+  outline-offset: 3px;
+}
+
+.badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--hair);
+  border-radius: 2px;
+  color: var(--latent);
+  white-space: nowrap;
+}
+
+/* Green means "this exists and works", never "these two numbers agree". */
+.badge-live {
+  color: var(--signal);
+  border-color: color-mix(in srgb, var(--signal) 35%, transparent);
+}
+
+.badge-danger {
+  color: var(--safelight);
+  border-color: color-mix(in srgb, var(--safelight) 45%, transparent);
+}
+
+/* Used where the page has to contradict what a visitor would otherwise assume. */
+.banner-danger {
+  border: 1px solid color-mix(in srgb, var(--safelight) 45%, transparent);
+  border-left-width: 2px;
+  background: color-mix(in srgb, var(--safelight) 7%, transparent);
+  padding: 0.9rem 1.1rem;
+  margin-block: 1.1rem;
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.disclosure {
+  border-left: 2px solid var(--safelight);
+  padding-left: 0.9rem;
+  color: var(--ink);
+}
+
+.disclosure strong {
+  font-weight: 500;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --latent: var(--ink);
+  }
+}
+
+.panel table caption {
+  caption-side: top;
+  text-align: left;
+  padding-bottom: 0.75rem;
 }
