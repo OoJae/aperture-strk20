@@ -6,7 +6,7 @@
  * only accent on the site and it is spent sparingly.
  */
 
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+@import url("./fonts.css");
 
 :root {
   --void: #0a0a0c;

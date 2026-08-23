@@ -137,20 +137,20 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
     strkToken:
       "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
     registry:
-      "0x01432bc68815695d4be3300cb29085aa916c97c11b7eb04e27ae9b84ad82b64f",
+      "0x058b9e29599a1f20fd316254b965bcf7feaed7b4d48268055c1ba38d500602ff",
     anonymizer:
-      "0x00533fedd104a3dd4097a6ad58f9a5637553f1a83f976867866cb60c02d7466d",
+      "0x03986832c64ebc2e73395405d77577062021b49e749acf10ec3074ceb3e355b7",
     registryClassHash:
-      "0x05ce106206f1ec3dfefd12dccfc3722b32fe7a0bd77b1c76c8f4947096d5ea1e",
+      "0x017b824cdadca3849e194f528fbc1740060210fb1f02ae7505055e56b380605a",
     anonymizerClassHash:
-      "0x05c37265083181d3669f096b0a594ead9725b75ff4a413dae007c8ddab818a37",
+      "0x0659758006c9e0c8bac1ea0fe33df8a2ff5549fd5be90744184f11935471a542",
     ballotAccountClassHash:
       "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
     daoMasterPublicKey:
-      "0x660a41ee3edd08bd84276775ea1bed419f38ed8fe7bf4c07b522c3513a73e42",
-    epoch: null,
-    deployedAt: "2026-08-17",
-    contractVersion: "v1",
+      "0x19fc7bf266b468a25073da987cf4b6392346b6c2c1cbfaf19be13e1bdcd3702",
+    epoch: "APERTURE:V2:2026-08",
+    deployedAt: "2026-08-23",
+    contractVersion: "v2",
     indexerUrl: "https://discovery-service.alpha-sepolia.sw-dev.io",
     provingServiceUrl: "https://transaction-prover.alpha-sepolia.sw-dev.io",
     ballotIdentitiesLive: true,
@@ -165,6 +165,46 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
           "address it published was one no account could be deployed at. The " +
           "Sepolia anonymizer still points at it, because that pointer is " +
           "write-once.",
+      },
+      {
+        address:
+          "0x01432bc68815695d4be3300cb29085aa916c97c11b7eb04e27ae9b84ad82b64f",
+        role: "ProposalRegistry (v1)",
+        why:
+          "Superseded by v2 on 2026-08-23. v1 had no quorum, published no " +
+          "counted-through block, and gated payouts on a permanent boolean " +
+          "carrying no token and no amount. It holds no funds.",
+      },
+      {
+        address:
+          "0x00533fedd104a3dd4097a6ad58f9a5637553f1a83f976867866cb60c02d7466d",
+        role: "GovernanceAnonymizer (v1)",
+        why:
+          "Superseded by v2 on 2026-08-23. Holds 20.5 STRK that nobody can " +
+          "recover: the payout preimages were displayed and never saved, and " +
+          "there is no sweep. The same failure as the 14 STRK on mainnet. " +
+          "Tickets are now written to disk before anything is submitted.",
+      },
+      {
+        address:
+          "0x02a7fea0197b6299c1c1effd7f7ec4319b8e027298cd64a40652b6b0263aac4c",
+        role: "ProposalRegistry (v2, first attempt)",
+        why:
+          "Never used. Deployed against DAO_MASTER_PUBLIC_KEY_V2 while every " +
+          "client derived ballot addresses from the canonical name, so it " +
+          "published addresses no client could reproduce. Two names for one " +
+          "role.",
+      },
+      {
+        address:
+          "0x0490ea9d4752b57eb4abafa1d1b340324ce9a3d6caba579d13cd311dcd948600",
+        role: "GovernanceAnonymizer (v2, first attempt)",
+        why:
+          "Never used, holds nothing, and immutable — so it is dead rather " +
+          "than merely old. Carries two bugs found by the pre-flight review " +
+          "that ran after it was deployed: claim() trusting calldata for value " +
+          "it moved, and register_payout being reachable by anyone, which let " +
+          "a stranger burn a proposal's payout cap permanently.",
       },
     ],
   },

@@ -2,7 +2,7 @@
   "name": "@aperture/web",
   "version": "0.0.0",
   "private": true,
-  "description": "Aperture demo dapp — shield, cast a sealed ballot, watch the tally.",
+  "description": "Aperture demo dapp — read proposals, ballot identities and tallies with no wallet; connect one only for the treasury-payout path.",
   "license": "MIT",
   "engines": {
     "node": ">=24"
