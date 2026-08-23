@@ -1,6 +1,6 @@
 [package]
 name = "aperture"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024_07"
 
 # Toolchain pins (keep in sync with .github/workflows/ci.yml):
@@ -14,6 +14,8 @@ assert_macros = "2.20.0"
 
 [[target.starknet-contract]]
 sierra = true
+# sncast declare needs the compiled class to compute a CASM hash.
+casm = true
 
 [scripts]
 test = "snforge test"

@@ -6,6 +6,7 @@
 
 use aperture::ballot::Choice;
 use aperture::proposal_registry::{
+    TallyProvenance,
     IProposalRegistryDispatcher, IProposalRegistryDispatcherTrait,
     IProposalRegistrySafeDispatcher, IProposalRegistrySafeDispatcherTrait, Tally,
 };
@@ -24,6 +25,14 @@ const MASTER_PUB: felt252 = 0x1818d42721b097dd91b7495207bc12bd38c73bd66cdb7bcf38
 
 const START: u64 = 100;
 const END: u64 = 200;
+const CHAIN_ID: felt252 = 'SN_SEPOLIA';
+const EPOCH: felt252 = 'APERTURE:V2:TEST';
+/// Deliberately tiny. A non-zero floor is what the constructor requires; the
+/// existing tally fixtures are raw units, and a realistic 5e18 floor would make
+/// every one of them fail quorum for reasons unrelated to what they test.
+const MIN_QUORUM: u128 = 1;
+const PAYOUT_TOKEN: ContractAddress = 0x0777.try_into().unwrap();
+const PAYOUT_CAP: u128 = 1_000_000;
 
 fn deploy() -> (ContractAddress, IProposalRegistryDispatcher) {
     let contract = declare("ProposalRegistry").unwrap().contract_class();
@@ -34,14 +43,22 @@ fn deploy() -> (ContractAddress, IProposalRegistryDispatcher) {
     OPERATOR.serialize(ref calldata);
     CLASS_HASH.serialize(ref calldata);
     MASTER_PUB.serialize(ref calldata);
+    CHAIN_ID.serialize(ref calldata);
+    EPOCH.serialize(ref calldata);
+    MIN_QUORUM.serialize(ref calldata);
 
     let (address, _) = contract.deploy(@calldata).unwrap();
     (address, IProposalRegistryDispatcher { contract_address: address })
 }
 
 fn create_default_proposal(address: ContractAddress, d: IProposalRegistryDispatcher) -> u64 {
+    // v2 rejects a window that has already closed, so a proposal has to be
+    // created before its own start block. snforge's default height is well past
+    // START, which is why this cheat is now required rather than incidental.
+    start_cheat_block_number_global(START - 1);
     cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
-    d.create_proposal('ipfs://proposal-1', START, END)
+    start_cheat_block_number_global(START - 1);
+    d.create_proposal('ipfs://proposal-1', START, END, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP)
 }
 
 #[test]
@@ -64,7 +81,8 @@ fn owner_can_create_a_proposal() {
 fn stranger_cannot_create_a_proposal() {
     let (address, d) = deploy();
     start_cheat_caller_address(address, STRANGER);
-    d.create_proposal('ipfs://nope', START, END);
+    start_cheat_block_number_global(START - 1);
+    d.create_proposal('ipfs://nope', START, END, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP);
     stop_cheat_caller_address(address);
 }
 
@@ -73,7 +91,8 @@ fn stranger_cannot_create_a_proposal() {
 fn window_must_end_after_it_starts() {
     let (address, d) = deploy();
     cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
-    d.create_proposal('ipfs://bad', END, START);
+    start_cheat_block_number_global(START - 1);
+    d.create_proposal('ipfs://bad', END, START, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP);
 }
 
 #[test]
@@ -86,7 +105,8 @@ fn owner_can_allow_another_proposer() {
     assert!(d.is_allowed_proposer(STRANGER));
 
     cheat_caller_address(address, STRANGER, CheatSpan::TargetCalls(1));
-    let id = d.create_proposal('ipfs://from-stranger', START, END);
+    start_cheat_block_number_global(START - 1);
+    let id = d.create_proposal('ipfs://from-stranger', START, END, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP);
     assert!(id == 1);
 }
 
@@ -107,7 +127,7 @@ fn operator_can_finalize_after_the_window() {
     start_cheat_block_number_global(END + 1);
     let tally = Tally { for_weight: 900, against_weight: 100, abstain_weight: 5 };
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, tally);
+    d.finalize(id, tally, END, TallyProvenance::BallotDerived);
 
     assert!(d.get_proposal(id).finalized, "should be finalized");
     assert!(d.get_tally(id) == tally, "tally should round-trip");
@@ -121,7 +141,7 @@ fn a_losing_proposal_does_not_pass() {
 
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, Tally { for_weight: 100, against_weight: 900, abstain_weight: 0 });
+    d.finalize(id, Tally { for_weight: 100, against_weight: 900, abstain_weight: 0 }, END, TallyProvenance::BallotDerived);
 
     assert!(!d.has_passed(id), "fewer for than against must not pass");
 }
@@ -134,7 +154,7 @@ fn a_tie_does_not_pass() {
 
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, Tally { for_weight: 500, against_weight: 500, abstain_weight: 0 });
+    d.finalize(id, Tally { for_weight: 500, against_weight: 500, abstain_weight: 0 }, END, TallyProvenance::BallotDerived);
 
     assert!(!d.has_passed(id), "a tie must not pass");
 }
@@ -154,7 +174,7 @@ fn stranger_cannot_finalize() {
 
     start_cheat_block_number_global(END + 1);
     start_cheat_caller_address(address, STRANGER);
-    d.finalize(id, Default::default());
+    d.finalize(id, Default::default(), END, TallyProvenance::BallotDerived);
     stop_cheat_caller_address(address);
 }
 
@@ -168,7 +188,7 @@ fn owner_cannot_finalize() {
 
     start_cheat_block_number_global(END + 1);
     start_cheat_caller_address(address, OWNER);
-    d.finalize(id, Default::default());
+    d.finalize(id, Default::default(), END, TallyProvenance::BallotDerived);
     stop_cheat_caller_address(address);
 }
 
@@ -180,7 +200,7 @@ fn cannot_finalize_before_the_window_closes() {
 
     start_cheat_block_number_global(END - 1);
     start_cheat_caller_address(address, OPERATOR);
-    d.finalize(id, Default::default());
+    d.finalize(id, Default::default(), END, TallyProvenance::BallotDerived);
     stop_cheat_caller_address(address);
 }
 
@@ -190,7 +210,7 @@ fn cannot_finalize_a_proposal_that_does_not_exist() {
     let (address, d) = deploy();
     start_cheat_block_number_global(END + 1);
     start_cheat_caller_address(address, OPERATOR);
-    d.finalize(999, Default::default());
+    d.finalize(999, Default::default(), END, TallyProvenance::BallotDerived);
     stop_cheat_caller_address(address);
 }
 
@@ -206,9 +226,9 @@ fn cannot_finalize_twice() {
     start_cheat_block_number_global(END + 1);
     start_cheat_caller_address(address, OPERATOR);
 
-    safe.finalize(id, Tally { for_weight: 10, against_weight: 1, abstain_weight: 0 }).unwrap();
+    safe.finalize(id, Tally { for_weight: 10, against_weight: 1, abstain_weight: 0 }, END, TallyProvenance::BallotDerived).unwrap();
 
-    match safe.finalize(id, Tally { for_weight: 1, against_weight: 10, abstain_weight: 0 }) {
+    match safe.finalize(id, Tally { for_weight: 1, against_weight: 10, abstain_weight: 0 }, END, TallyProvenance::BallotDerived) {
         Result::Ok(_) => panic!("a second finalize should have reverted"),
         Result::Err(panic_data) => {
             assert!(*panic_data.at(0) == 'ALREADY_FINALIZED');
@@ -236,10 +256,184 @@ fn ballot_addresses_are_published_per_choice() {
 fn proposal_ids_increment() {
     let (address, d) = deploy();
     cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
-    let first = d.create_proposal('a', START, END);
+    start_cheat_block_number_global(START - 1);
+    let first = d.create_proposal('a', START, END, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP);
     cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
-    let second = d.create_proposal('b', START, END);
+    start_cheat_block_number_global(START - 1);
+    let second = d.create_proposal('b', START, END, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP);
 
     assert!(first == 1 && second == 2, "ids should increment");
     assert!(d.proposal_count() == 2);
+}
+
+
+// --- the counted-through pin ---------------------------------------------
+//
+// A tally's validity depends entirely on which block it counted through, and
+// until v2 nothing on chain recorded that. The Sepolia proposal published as
+// 5 STRK counted a ballot that arrived 945 blocks after the window closed; the
+// contract could not have known. These are the tests that make that
+// unpublishable.
+
+fn finalizable(address: ContractAddress, d: IProposalRegistryDispatcher) -> u64 {
+    let id = create_default_proposal(address, d);
+    start_cheat_block_number_global(END + 1);
+    id
+}
+
+fn passing() -> Tally {
+    Tally { for_weight: 900, against_weight: 100, abstain_weight: 5 }
+}
+
+#[test]
+fn counted_through_at_the_end_block_succeeds() {
+    let (address, d) = deploy();
+    let id = finalizable(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(id, passing(), END, TallyProvenance::BallotDerived);
+
+    assert!(d.get_counted_through(id) == END, "the pin must round-trip");
+    assert!(d.get_provenance(id) == TallyProvenance::BallotDerived);
+}
+
+#[test]
+#[should_panic(expected: 'COUNTED_THROUGH_MISMATCH')]
+fn counted_through_one_block_early_reverts() {
+    // Would miss every ballot cast in the window's final block.
+    let (address, d) = deploy();
+    let id = finalizable(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(id, passing(), END - 1, TallyProvenance::BallotDerived);
+}
+
+#[test]
+#[should_panic(expected: 'COUNTED_THROUGH_MISMATCH')]
+fn counted_through_one_block_late_reverts() {
+    // The shape of the real failure: a pin past the close counts ballots that
+    // arrived after voting ended.
+    let (address, d) = deploy();
+    let id = finalizable(address, d);
+    start_cheat_block_number_global(END + 2);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(id, passing(), END + 1, TallyProvenance::BallotDerived);
+}
+
+#[test]
+#[should_panic(expected: 'COUNTED_THROUGH_MISMATCH')]
+fn counted_through_zero_reverts() {
+    // What a caller that never computed the pin would send.
+    let (address, d) = deploy();
+    let id = finalizable(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(id, passing(), 0, TallyProvenance::BallotDerived);
+}
+
+#[test]
+#[should_panic(expected: 'PROVENANCE_UNSET')]
+fn provenance_is_required_even_with_a_correct_pin() {
+    // Proves the second assert is not shadowed by the first.
+    let (address, d) = deploy();
+    let id = finalizable(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(id, passing(), END, TallyProvenance::Unset);
+}
+
+#[test]
+fn an_unwritten_provenance_slot_reads_unset() {
+    // The whole reason Unset is variant 0. If the derived Store ever wrote
+    // index+1, every never-finalized proposal would silently read as
+    // BallotDerived — the stronger claim, asserted by nobody.
+    let (_, d) = deploy();
+    assert!(d.get_provenance(4242) == TallyProvenance::Unset);
+    assert!(d.get_counted_through(4242) == 0);
+}
+
+#[test]
+fn an_operator_asserted_tally_is_pinned_the_same_way() {
+    // One rule, not two. Provenance records how the number was produced; it
+    // does not buy a different pin.
+    let (address, d) = deploy();
+    let id = finalizable(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(id, passing(), END, TallyProvenance::OperatorAsserted);
+
+    assert!(d.get_provenance(id) == TallyProvenance::OperatorAsserted);
+    assert!(d.has_passed(id), "provenance does not change the pass rule");
+}
+
+// --- quorum ---------------------------------------------------------------
+
+#[test]
+fn turnout_below_quorum_does_not_pass() {
+    let (address, d) = deploy();
+    start_cheat_block_number_global(START - 1);
+    cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
+    let id = d.create_proposal('ipfs://high-bar', START, END, 5_000, PAYOUT_TOKEN, PAYOUT_CAP);
+
+    start_cheat_block_number_global(END + 1);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    // Overwhelmingly for, and still short of the bar.
+    d.finalize(
+        id,
+        Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 },
+        END,
+        TallyProvenance::BallotDerived,
+    );
+    assert!(!d.has_passed(id), "1000 turnout must not clear a 5000 quorum");
+}
+
+#[test]
+fn turnout_exactly_at_quorum_passes() {
+    let (address, d) = deploy();
+    start_cheat_block_number_global(START - 1);
+    cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
+    let id = d.create_proposal('ipfs://exact', START, END, 1_005, PAYOUT_TOKEN, PAYOUT_CAP);
+
+    start_cheat_block_number_global(END + 1);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(id, passing(), END, TallyProvenance::BallotDerived);
+    assert!(d.has_passed(id), "turnout at the boundary must clear it");
+}
+
+#[test]
+fn abstain_counts_toward_turnout() {
+    // A staked abstain is participation. Excluding it would let a quorum fail
+    // on ballots that were cast.
+    let (address, d) = deploy();
+    start_cheat_block_number_global(START - 1);
+    cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
+    let id = d.create_proposal('ipfs://abstain', START, END, 1_005, PAYOUT_TOKEN, PAYOUT_CAP);
+
+    start_cheat_block_number_global(END + 1);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(id, passing(), END, TallyProvenance::BallotDerived);
+    // 900 + 100 = 1000, short. The 5 abstain is what clears it.
+    assert!(d.has_passed(id));
+}
+
+#[test]
+#[should_panic(expected: 'QUORUM_BELOW_FLOOR')]
+fn a_proposal_cannot_lower_the_floor() {
+    let (address, d) = deploy();
+    start_cheat_block_number_global(START - 1);
+    cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
+    d.create_proposal('ipfs://too-low', START, END, MIN_QUORUM - 1, PAYOUT_TOKEN, PAYOUT_CAP);
+}
+
+#[test]
+fn three_maximal_weights_do_not_panic() {
+    // v1 would have overflowed computing turnout in u128. This view is called
+    // by the anonymizer inside a pool transaction, where a panic reverts
+    // everything with an error naming nothing.
+    let (address, d) = deploy();
+    let id = finalizable(address, d);
+    let max: u128 = 0xffffffffffffffffffffffffffffffff;
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(
+        id,
+        Tally { for_weight: max, against_weight: max, abstain_weight: max },
+        END,
+        TallyProvenance::BallotDerived,
+    );
+    assert!(!d.has_passed(id), "for == against is not a pass");
 }

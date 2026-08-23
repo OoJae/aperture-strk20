@@ -14,6 +14,9 @@ use aperture::ballot::{Choice, ballot_address, ballot_salt, choice_index, comput
 /// class with a different constructor (Argent's takes `[0, pubkey, 1]`) yields
 /// addresses that look fine and correspond to no deployable account.
 const CLASS_HASH: felt252 = 0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564;
+/// A synthetic domain, so the pinned vectors do not churn every time a registry
+/// is redeployed. Real deployments pass their own address.
+const TEST_DOMAIN: felt252 = 0x1234;
 const MASTER_PUB: felt252 = 0x1818d42721b097dd91b7495207bc12bd38c73bd66cdb7bcf38c4e41902c1d4b;
 
 #[test]
@@ -39,16 +42,16 @@ fn choices_have_distinct_indices() {
 
 #[test]
 fn each_choice_gets_its_own_salt() {
-    let f = ballot_salt(7, Choice::For);
-    let a = ballot_salt(7, Choice::Against);
-    let b = ballot_salt(7, Choice::Abstain);
+    let f = ballot_salt(TEST_DOMAIN, 7, Choice::For);
+    let a = ballot_salt(TEST_DOMAIN, 7, Choice::Against);
+    let b = ballot_salt(TEST_DOMAIN, 7, Choice::Abstain);
     assert!(f != a && a != b && f != b, "choices must not share a salt");
 }
 
 #[test]
 fn each_proposal_gets_its_own_salt() {
     assert!(
-        ballot_salt(1, Choice::For) != ballot_salt(2, Choice::For),
+        ballot_salt(TEST_DOMAIN, 1, Choice::For) != ballot_salt(TEST_DOMAIN, 2, Choice::For),
         "proposals must not share a salt",
     );
 }
@@ -57,14 +60,14 @@ fn each_proposal_gets_its_own_salt() {
 /// voter can check the front end's arithmetic.
 #[test]
 fn ballot_address_is_deterministic() {
-    let a = ballot_address(3, Choice::For, CLASS_HASH, MASTER_PUB);
-    let b = ballot_address(3, Choice::For, CLASS_HASH, MASTER_PUB);
+    let a = ballot_address(TEST_DOMAIN, 3, Choice::For, CLASS_HASH, MASTER_PUB);
+    let b = ballot_address(TEST_DOMAIN, 3, Choice::For, CLASS_HASH, MASTER_PUB);
     assert!(a == b, "derivation must be deterministic");
 }
 
 #[test]
 fn ballot_addresses_differ_across_choices() {
-    let f = ballot_address(3, Choice::For, CLASS_HASH, MASTER_PUB);
-    let a = ballot_address(3, Choice::Against, CLASS_HASH, MASTER_PUB);
+    let f = ballot_address(TEST_DOMAIN, 3, Choice::For, CLASS_HASH, MASTER_PUB);
+    let a = ballot_address(TEST_DOMAIN, 3, Choice::Against, CLASS_HASH, MASTER_PUB);
     assert!(f != a, "FOR and AGAINST must be different identities");
 }

@@ -22,7 +22,7 @@ use starknet::ContractAddress;
 
 /// Domain separator, so a ballot salt can never collide with a hash computed
 /// for some other purpose over the same numbers.
-pub const BALLOT_TAG: felt252 = 'APERTURE_BALLOT:V1';
+pub const BALLOT_TAG: felt252 = 'APERTURE_BALLOT:V2';
 
 /// `'STARKNET_CONTRACT_ADDRESS'` as a felt.
 pub const CONTRACT_ADDRESS_PREFIX: felt252 = 'STARKNET_CONTRACT_ADDRESS';
@@ -48,8 +48,36 @@ pub fn choice_index(choice: Choice) -> felt252 {
 }
 
 /// Deterministic salt for one proposal/choice pair.
-pub fn ballot_salt(proposal_id: u64, choice: Choice) -> felt252 {
-    poseidon_hash_span([BALLOT_TAG, proposal_id.into(), choice_index(choice)].span())
+/// The separator every ballot salt, viewing key and payout commitment hangs off.
+///
+/// Binding the chain id is not theoretical hygiene. The v1 registries on mainnet
+/// and Sepolia share a ballot account class and a master public key, and the v1
+/// salt bound only `(tag, proposal_id, choice)` — so both live registries
+/// publish the *same* address for proposal 1 FOR:
+///
+///     0x4ec8ba622d5d1e869fe896e8759120fd34f17223974e968037e5466386a0b00
+///
+/// Verified by calling both contracts. A ballot cast on either chain lands at
+/// one address under one key.
+///
+/// Binding the registry address is what stops a v2 registry, whose
+/// `proposal_count` restarts at 0, reproducing v1's addresses exactly. The
+/// registry passes its own address, so it cannot be got wrong in deploy
+/// calldata.
+///
+/// `epoch` is an escape hatch that needs no code change: a redeploy elsewhere is
+/// already separated by its address, and one that somehow lands at the same
+/// address is separated by bumping this.
+pub fn ballot_domain(chain_id: felt252, registry: ContractAddress, epoch: felt252) -> felt252 {
+    poseidon_hash_span([BALLOT_TAG, chain_id, registry.into(), epoch].span())
+}
+
+/// Deterministic salt for one proposal/choice pair inside one domain.
+///
+/// `BALLOT_TAG` is absent here because the domain already carries it; including
+/// it twice would be noise, not defence.
+pub fn ballot_salt(domain: felt252, proposal_id: u64, choice: Choice) -> felt252 {
+    poseidon_hash_span([domain, proposal_id.into(), choice_index(choice)].span())
 }
 
 /// Pedersen chain over the elements, terminated by the count — the standard
@@ -84,7 +112,13 @@ pub fn compute_address(
 
 /// The receiving identity for one choice on one proposal.
 pub fn ballot_address(
-    proposal_id: u64, choice: Choice, class_hash: felt252, master_public_key: felt252,
+    domain: felt252,
+    proposal_id: u64,
+    choice: Choice,
+    class_hash: felt252,
+    master_public_key: felt252,
 ) -> ContractAddress {
-    compute_address(ballot_salt(proposal_id, choice), class_hash, [master_public_key].span())
+    compute_address(
+        ballot_salt(domain, proposal_id, choice), class_hash, [master_public_key].span(),
+    )
 }
