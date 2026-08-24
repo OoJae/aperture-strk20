@@ -25,7 +25,7 @@ const STEPS = [
     h: "Cast",
     p: "Your ballot is a private transfer into the identity for your choice. On-chain it emits a nullifier and an encrypted note — no amount, no voter, no choice. The sender is a relayer, not you.",
     aside: "Sealed",
-    where: "Sepolia only. Standing a ballot identity up means registering its viewing key with the pool, and that has not been done on mainnet. Sending STRK to a mainnet ballot address loses it.",
+    where: "Mainnet and Sepolia. All three identities are deployed at the addresses the registry publishes and registered with the pool on both, so each can actually receive a sealed vote. Verify the address against the registry before sending — an identity that is published but not deployed would lose whatever it is sent.",
   },
   {
     n: "04",
@@ -39,7 +39,7 @@ const STEPS = [
     h: "Tally",
     p: "After the window closes, the tally service reads what each identity received, sums it, and publishes only the aggregate on-chain. Individual ballots never leave it.",
     aside: "Aggregate",
-    where: "Sepolia, where a ballot exists to count. The aggregate published on mainnet was entered by the operator, and the demo says so where it shows it.",
+    where: "Mainnet and Sepolia. Both published tallies are ballot-derived — summed from notes the identities actually received — and each names the block it was counted through, which the contract requires to be the window's close.",
   },
 ];
 
@@ -69,13 +69,12 @@ export default function How() {
       <hr className="rule" />
 
       <section className="shell block">
-        <p className="banner-danger" data-reveal>
-          <strong>Steps 03 and 05 run on {DEPLOYMENTS.sepolia.label}, not on{" "}
-          {DEPLOYMENTS[ACTIVE].label}.</strong>{" "}
-          The contracts and the treasury payouts below are real on mainnet, but
-          no ballot identity is deployed there, so a ballot cast on mainnet would
-          go to an address with no account at it and be lost. Each step says
-          which network it applies to.
+        <p className="fade" data-reveal>
+          <strong>Every step below has run on {DEPLOYMENTS[ACTIVE].label}.</strong>{" "}
+          A sealed ballot was cast inside its voting window, counted, and
+          finalized, and a treasury payout was registered and claimed. Each step
+          still says which network it applies to, because the same lifecycle runs
+          on {DEPLOYMENTS.sepolia.label} too.
         </p>
         <ol className="steps">
           {STEPS.map((s, i) => (

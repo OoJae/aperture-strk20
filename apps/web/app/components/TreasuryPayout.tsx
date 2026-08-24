@@ -330,12 +330,17 @@ export function TreasuryPayout() {
             <p className="small">Save this preimage. It is not stored on any server:</p>
             <p className="mono small">{state.secret}</p>
             <p className="banner-danger small">
-              <strong>No claim has ever succeeded, on any network.</strong> The
-              claim leg fails with <span className="mono">NON_ZERO_VALUE</span>{" "}
-              and is unfinished. Treat this payout as unrecoverable until that
-              sentence changes: 14 STRK is already permanently locked in this
-              contract because earlier preimages were shown once and never saved,
-              and it has no sweep function and no owner.
+              <strong>
+                That preimage is the only thing that can open this payout, and it
+                exists nowhere but on your screen.
+              </strong>{" "}
+              Nothing here stores it — not this page, not a server, not the
+              contract. Lose it and the value is gone permanently: the anonymizer
+              has no sweep function and no owner, so there is no one to ask.
+              That is not hypothetical. <strong>34.5 STRK</strong> has already
+              been lost exactly this way, 14 on mainnet and 20.5 on Sepolia,
+              against earlier versions of this contract that displayed a preimage
+              once and never saved it.
             </p>
           </div>
         ) : null}

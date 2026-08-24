@@ -34,7 +34,7 @@ const TRUSTED = [
   },
   {
     h: "Value sent to the anonymizer without a commitment",
-    p: "It is gone. The contract has no sweep, no owner, and no transfer in its token interface: value leaves only as an allowance granted to the pool when a registered commitment is claimed. 14 STRK is permanently locked there today. That is a deliberate trade — immutability with no privileged role, at the cost of no recovery — and it has already cost real money.",
+    p: "It is gone. The contract has no sweep, no owner, and no transfer in its token interface: value leaves only as an allowance granted to the pool when a registered commitment is claimed. 34.5 STRK is permanently locked that way today, across the superseded mainnet and Sepolia anonymizers. That is a deliberate trade — immutability with no privileged role, at the cost of no recovery — and it has already cost real money.",
   },
 ];
 

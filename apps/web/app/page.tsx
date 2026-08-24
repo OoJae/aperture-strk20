@@ -118,11 +118,17 @@ export default function Home() {
         </p>
         <dl className="facts">
           {[
+            // The ballot leads, because it is what this project is about and
+            // it is now a thing that happened rather than a thing that could.
+            // The stat here used to be scoring(ACTIVE).length labelled
+            // "payouts", which stopped being true the moment the scoring set
+            // grew to include creating a proposal, publishing a tally and
+            // licensing a payout — none of which is a payout.
+            { k: "1", v: "sealed ballot cast, counted and finalized on mainnet" },
             {
               k: String(scoring(ACTIVE).length),
-              v: "payouts through our own Cairo anonymizer",
+              v: "mainnet transactions through our own Cairo contracts",
             },
-            { k: "2", v: "contracts deployed to Starknet mainnet" },
             {
               k: String(TEST_COUNTS.total),
               v: "tests across Cairo and TypeScript",

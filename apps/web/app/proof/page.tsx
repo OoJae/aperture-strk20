@@ -103,7 +103,9 @@ export default function Proof() {
           {SCORED.length} transactions through our own contracts
         </p>
         <p className="fade dim" data-reveal data-delay="60">
-          Each of these emits an event from GovernanceAnonymizer, which is what
+          Each of these emits an event from one of our own contracts —
+          GovernanceAnonymizer for the payout legs, ProposalRegistry for creating
+          a proposal, publishing a tally and licensing a payout — which is what
           makes it a transaction through Aperture&rsquo;s code rather than one
           that merely touched the pool.
         </p>
@@ -167,14 +169,23 @@ export default function Proof() {
           Value we locked up and cannot get back
         </p>
         <p className="fade" data-reveal data-delay="80">
-          GovernanceAnonymizer holds <strong>14 STRK</strong> that nobody can
-          ever move. Six payouts were registered against commitments whose
-          preimages the demo displayed once and never stored, the claim leg has
-          never succeeded on any network, and the contract has no sweep
-          function, no owner, and no <span className="mono">transfer</span> in
-          its token interface. That is not a bug we have yet to fix — it is a
-          property of a contract that cannot be changed after deployment, and it
-          cost real money to learn.
+          <strong>34.5 STRK</strong> is locked in contracts nobody can move it
+          out of — 14 in the superseded mainnet anonymizer{" "}
+          <span className="mono">0x05cc31d1…</span> and 20.5 in its Sepolia
+          counterpart. Payouts were registered there against commitments whose
+          preimages were displayed once and never stored, and neither contract
+          has a sweep function, an owner, or a{" "}
+          <span className="mono">transfer</span> in its token interface. That is
+          not a bug we have yet to fix — it is a property of a contract that
+          cannot be changed after deployment, and it cost real money to learn.
+        </p>
+        <p className="fade dim" data-reveal data-delay="140">
+          Both causes are fixed, and both fixes were proved by doing the thing
+          rather than by asserting it. The claim leg was failing on a stale note
+          index; it now waits for the settled pin to pass the register
+          transaction, and a payout has since been registered and claimed on
+          mainnet. Preimages are written to disk before anything is submitted.
+          None of that returns the 34.5 STRK, which is why it is still here.
         </p>
       </section>
 
@@ -185,15 +196,23 @@ export default function Proof() {
           Where the vote lifecycle actually runs
         </p>
         <p className="fade" data-reveal data-delay="80">
-          On <strong>{DEPLOYMENTS.sepolia.label}</strong>, not here. Three ballot
-          identities are deployed and registered with the pool there, and one
-          real sealed ballot was cast and finalized at 5 STRK for &mdash; though
-          that ballot arrived 945 blocks after the voting window closed, and the
-          counting code as it stands today scores it zero. It is being re-run
-          inside the window rather than left to imply a clean result. On{" "}
-          {DEPLOYMENTS[ACTIVE].label} no ballot identity is deployed, so the
-          addresses this site derives are addresses nothing can receive at. The
-          contracts and the payouts are real on mainnet; the voting is not.
+          On <strong>{DEPLOYMENTS[ACTIVE].label}</strong>. Three ballot
+          identities are deployed at the addresses this registry publishes and
+          registered with the pool, and one real sealed ballot was cast{" "}
+          <em>inside its voting window</em>, counted, and finalized at 5 STRK
+          for. The published tally names the block it counted through, and the
+          contract requires that block to be the window&rsquo;s close &mdash; so
+          the count is reproducible by anyone reading the same state, rather than
+          taken on our word.
+        </p>
+        <p className="fade dim" data-reveal data-delay="140">
+          This section used to say the voting was Sepolia-only, and that the one
+          Sepolia ballot had arrived <strong>945 blocks after its window
+          closed</strong> &mdash; counted anyway by a worker that filtered
+          nothing, and scored zero by the code as it stands now. That result is
+          still in the history with the correction attached. Binding the window
+          on chain is the fix, and this mainnet ballot is the first one cast
+          under it.
         </p>
       </section>
     </Chrome>
