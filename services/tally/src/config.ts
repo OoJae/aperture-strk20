@@ -91,6 +91,26 @@ export interface TallyConfig {
 
   operatorAddress: string;
   operatorPrivateKey: string;
+
+  /**
+   * The account that touches the POOL, which is not always the one that writes
+   * to the registry.
+   *
+   * On Sepolia they are the same account and these fall back to the operator's
+   * values. On mainnet they cannot be: the registry's `tally_operator` is fixed
+   * at construction and can never change, while the pool binds an account to a
+   * viewing key WRITE-ONCE. Our mainnet operator was registered with the pool
+   * under a key that is not in any env file, so that account can never spend or
+   * read a shielded note again — and no amount of configuration fixes it,
+   * because the slot cannot be rewritten.
+   *
+   * Splitting the roles is the only way out, and it is also the more honest
+   * model: writing a tally is an identity the contract names, while touching
+   * the pool is whoever holds a registered viewing key.
+   */
+  poolActorAddress: string;
+  poolActorPrivateKey: string;
+  poolActorViewingKey?: bigint;
 }
 
 export class MissingConfigError extends Error {
@@ -296,6 +316,10 @@ export function loadConfig(explicitEnv?: NodeJS.ProcessEnv): TallyConfig {
   const operatorViewingKey = env.TALLY_OPERATOR_VIEWING_KEY
     ? toBigInt("TALLY_OPERATOR_VIEWING_KEY", env.TALLY_OPERATOR_VIEWING_KEY)
     : undefined;
+  const poolActorViewingKey = env.POOL_ACTOR_VIEWING_KEY
+    ? toBigInt("POOL_ACTOR_VIEWING_KEY", env.POOL_ACTOR_VIEWING_KEY)
+    : operatorViewingKey;
+  if (poolActorViewingKey !== undefined) assertValidViewingKey(poolActorViewingKey);
   if (voterViewingKey !== undefined) assertValidViewingKey(voterViewingKey);
   if (operatorViewingKey !== undefined) assertValidViewingKey(operatorViewingKey);
 
@@ -329,6 +353,11 @@ export function loadConfig(explicitEnv?: NodeJS.ProcessEnv): TallyConfig {
     operatorViewingKey,
     operatorAddress: env.TALLY_OPERATOR_ADDRESS!,
     operatorPrivateKey: env.TALLY_OPERATOR_PRIVATE_KEY!,
+    // Falls back to the operator, which is exactly right on a network where one
+    // account does both jobs.
+    poolActorAddress: env.POOL_ACTOR_ADDRESS ?? env.TALLY_OPERATOR_ADDRESS!,
+    poolActorPrivateKey: env.POOL_ACTOR_PRIVATE_KEY ?? env.TALLY_OPERATOR_PRIVATE_KEY!,
+    poolActorViewingKey,
   };
 }
 

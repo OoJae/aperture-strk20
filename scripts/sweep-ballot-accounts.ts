@@ -71,7 +71,13 @@ async function main(): Promise<number> {
   const env = loadEnv();
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
 
-  if (config.network === "mainnet" && env.APERTURE_CONFIRM !== "mainnet") {
+  // Read from the process environment, not from the .env file.
+  //
+  // A confirmation that has to be written into .env to work is a confirmation
+  // that gets written once and then protects nothing — every run afterwards is
+  // pre-approved by a file nobody re-reads. As a per-command variable it has to
+  // be typed again each time, which is the entire point of it.
+  if (config.network === "mainnet" && process.env.APERTURE_CONFIRM !== "mainnet") {
     console.error("Refusing to spend on mainnet without APERTURE_CONFIRM=mainnet.");
     return 2;
   }

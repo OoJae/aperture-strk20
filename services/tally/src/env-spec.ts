@@ -212,6 +212,33 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
       "DAO_MASTER_PUBLIC_KEY, and the loader checks that it is.",
   },
   {
+    name: "POOL_ACTOR_ADDRESS",
+    requirement: "optional",
+    secret: false,
+    group: "Secrets",
+    description:
+      "Account that touches the POOL, when that is not the tally operator. " +
+      "Defaults to TALLY_OPERATOR_ADDRESS. Needed on a network where the " +
+      "operator's write-once pool viewing key is lost or was never stored.",
+  },
+  {
+    name: "POOL_ACTOR_PRIVATE_KEY",
+    requirement: "optional",
+    secret: true,
+    group: "Secrets",
+    description: "Signs for POOL_ACTOR_ADDRESS. Defaults to the operator's key.",
+  },
+  {
+    name: "POOL_ACTOR_VIEWING_KEY",
+    requirement: "optional",
+    secret: true,
+    group: "Secrets",
+    description:
+      "POOL_ACTOR_ADDRESS's pool viewing key. SENT TO THE INDEXER IN " +
+      "CLEARTEXT. The pool binds an address to one of these permanently, so " +
+      "store it the moment it is generated.",
+  },
+  {
     name: "VOTER_VIEWING_KEY",
     requirement: "optional",
     secret: true,

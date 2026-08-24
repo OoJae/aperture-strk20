@@ -69,7 +69,7 @@ async function main(): Promise<number> {
     console.error("APERTURE_ANONYMIZER_ADDRESS and PROVING_SERVICE_URL are required.");
     return 2;
   }
-  if (config.network === "mainnet" && env.APERTURE_CONFIRM !== "mainnet") {
+  if (config.network === "mainnet" && process.env.APERTURE_CONFIRM !== "mainnet") {
     console.error("Refusing to spend on mainnet without APERTURE_CONFIRM=mainnet.");
     return 2;
   }
