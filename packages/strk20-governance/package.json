@@ -1,6 +1,6 @@
 {
   "name": "@oojae/strk20-governance",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Sealed-ballot governance primitives for the STRK20 shielded pool on Starknet.",
   "keywords": [
     "starknet",
@@ -62,7 +62,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.ts",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "prepack": "pnpm build"
+    "prepack": "node scripts-guard.mjs && pnpm build"
   },
   "dependencies": {
     "starknet": "^10.4.0"
