@@ -23,6 +23,7 @@ import { deriveBallotIdentity } from "@oojae/strk20-governance";
 import { parseTokenAmount } from "@oojae/strk20-governance";
 import type { Choice } from "@oojae/strk20-governance";
 import { loadConfig } from "./config.ts";
+import { assertRegisteredViewingKey } from "./pool-identity.ts";
 import { ensurePoolAllowance } from "./pool-allowance.ts";
 import { readBallotDomain } from "./registry.ts";
 
@@ -90,12 +91,30 @@ async function main(argv: string[]): Promise<number> {
   // also signed for every ballot account, and the SDK POSTs whatever is given
   // here to the indexer in cleartext — so the indexer received read and spend
   // authority over the whole system.
-  const voterViewingKey = config.voterViewingKey;
+  // The pool actor's own key, because the pool actor is the account signing
+  // this. A viewing key belongs to an ACCOUNT, not to a job, and pairing one
+  // account's key with another's address is rejected by the indexer with a 400
+  // that names neither.
+  const voterViewingKey = config.poolActorViewingKey;
   if (voterViewingKey === undefined) {
     console.error(
-      "VOTER_VIEWING_KEY is not set. It is disclosed to the indexer in " +
-        "cleartext, so it must be a key of its own — see .env.example.",
+      "No pool viewing key is configured for this network. It is disclosed to " +
+        "the indexer in cleartext, so it must be a key of its own — see " +
+        ".env.example.",
     );
+    return 1;
+  }
+
+  // A free read, before any proof is requested.
+  try {
+    await assertRegisteredViewingKey(
+      provider,
+      config.poolAddress,
+      config.poolActorAddress,
+      voterViewingKey,
+    );
+  } catch (error) {
+    console.error(`\n${error instanceof Error ? error.message : String(error)}`);
     return 1;
   }
 
