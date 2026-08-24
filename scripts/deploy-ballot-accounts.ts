@@ -53,7 +53,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  */
 const FUNDING = {
   sepolia: 15n * 10n ** 18n,
-  mainnet: 20n * 10n ** 18n,
+  // Mainnet's l2 gas price currently reads the same as Sepolia's, and the
+  // ceiling scales with it: Sepolia demanded 5.77 STRK at 46.1e9 per unit, so
+  // at mainnet's 31.8e9 the same transaction wants nearer 4. Add the 6 STRK
+  // flat fee and a register needs about 10. Fifteen is 50% headroom on a
+  // measured figure, which is a different thing from the 20 that was here
+  // before — that was a guess with a safety factor on top of a guess.
+  mainnet: 15n * 10n ** 18n,
 } as const;
 
 function loadEnv(): Record<string, string> {

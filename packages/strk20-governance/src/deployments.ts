@@ -108,23 +108,51 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
     strkToken:
       "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
     registry:
-      "0x0371e11c7cae61bc2fd5ce6b75153d59746ecf2d88b286be6ebe9c7c001e330c",
+      "0x02994d8a2b9a78d7c6c3d49696a22ec2010ffa120da09481ed1e5065e770e989",
     anonymizer:
-      "0x05cc31d13d5901347d009f70f59abacb22b76e84963286004b67bf4644546890",
+      "0x01379a8daf18dfbb24b6ec80feb846b6445692090ab34ba0b286d49d1c04e1c5",
     registryClassHash:
-      "0x05ce106206f1ec3dfefd12dccfc3722b32fe7a0bd77b1c76c8f4947096d5ea1e",
+      "0x017b824cdadca3849e194f528fbc1740060210fb1f02ae7505055e56b380605a",
     anonymizerClassHash:
-      "0x05c37265083181d3669f096b0a594ead9725b75ff4a413dae007c8ddab818a37",
+      "0x0659758006c9e0c8bac1ea0fe33df8a2ff5549fd5be90744184f11935471a542",
     ballotAccountClassHash:
       "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
     daoMasterPublicKey:
-      "0x660a41ee3edd08bd84276775ea1bed419f38ed8fe7bf4c07b522c3513a73e42",
-    epoch: null,
-    deployedAt: "2026-08-17",
-    contractVersion: "v1",
+      "0x19fc7bf266b468a25073da987cf4b6392346b6c2c1cbfaf19be13e1bdcd3702",
+    epoch: "APERTURE:V2:2026-08",
+    deployedAt: "2026-08-24",
+    contractVersion: "v2",
     indexerUrl: "https://discovery-service.alpha-mainnet.sw-dev.io",
     provingServiceUrl: "https://transaction-prover.alpha-mainnet.sw-dev.io",
+    // No proposal exists on the v2 registry yet, so no identity has been
+    // derived, let alone deployed. This stays false until three accounts are
+    // live at the addresses the registry publishes — the v1 mainnet registry
+    // published three addresses with nothing at them and the demo offered them
+    // to voters, which is the reason this field exists at all.
     ballotIdentitiesLive: false,
+    superseded: [
+      {
+        address:
+          "0x0371e11c7cae61bc2fd5ce6b75153d59746ecf2d88b286be6ebe9c7c001e330c",
+        role: "ProposalRegistry (v1)",
+        why:
+          "Superseded by v2 on 2026-08-24. No quorum, no published " +
+          "counted-through block, and payouts gated on a permanent boolean " +
+          "carrying no token and no amount. Holds no funds. The ten " +
+          "transactions in the ledger below ran against this pairing and " +
+          "remain valid history.",
+      },
+      {
+        address:
+          "0x05cc31d13d5901347d009f70f59abacb22b76e84963286004b67bf4644546890",
+        role: "GovernanceAnonymizer (v1)",
+        why:
+          "Superseded by v2 on 2026-08-24. Holds 14 STRK that nobody can " +
+          "recover — the payout preimages were displayed once and never " +
+          "stored, and there is no sweep. Not a bug in this contract so much " +
+          "as a process failure it cannot forgive.",
+      },
+    ],
   },
   sepolia: {
     chainId: "SN_SEPOLIA",
