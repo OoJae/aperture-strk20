@@ -163,15 +163,53 @@ package · `apps/web` demo dapp · `services/tally` server-side tally worker ·
 
 ## Where we are
 
-Two contracts are live on Starknet mainnet and two on Sepolia; `strk20.json`
-carries ten mainnet transactions, six of them through our own anonymizer; the
-demo is deployed with no login wall. The sealed-vote lifecycle runs end to end
-on Sepolia and has never been run on mainnet.
+Updated 2026-08-24.
 
-What is not done: the claim leg reverts with `NON_ZERO_VALUE` on every network,
-refunds are computed but have no payee recorded, and there is no demo video.
-14 STRK is permanently locked in the v1 mainnet anonymizer — see
-`docs/TRUST_MODEL.md`.
+**Mainnet runs v1.** Two contracts, ten transactions in `strk20.json`, six of
+them through our own anonymizer, demo deployed with no login wall.
+
+**Sepolia runs v2, and the whole lifecycle works there.** Registry
+`0x058b9e29…`, anonymizer `0x03986832…`. A sealed ballot cast **inside** its
+window, finalized with `counted_through == end_block` and `BallotDerived`, and a
+payout registered and **claimed** — the first claimed payout on any network.
+Afterwards the registry's `authorized` and the anonymizer's `spent` agree,
+`outstanding` and `unattached` are both zero. `docs/DEPLOYMENTS.md` has the
+hashes.
+
+What is not done:
+
+- **v2 is not on mainnet.** The obstacle is funding, not infrastructure: peak
+  ~94 STRK held at once for one ballot and one payout, ~40 recoverable by
+  `scripts/sweep-ballot-accounts.ts`, ~55 net. The deployer holds 53.4. The
+  binding constraint is resource **bounds**, not the flat fee — a registration
+  was refused at a 4.88 STRK balance because the node wanted ~5.77 STRK of l2
+  gas as a ceiling.
+- **Refunds** are computed but have no payee recorded, and paying one needs a
+  private transfer.
+- **No demo video.**
+- **`@oojae/strk20-governance` is publish-ready but unpublished** — that needs
+  the maintainer's npm credentials and claims the name irreversibly.
+- **34.5 STRK is permanently locked**, 14 in the v1 mainnet anonymizer and 20.5
+  in the v1 Sepolia one. Both are the same failure — a payout preimage displayed
+  once and never stored, against a contract with no sweep. See
+  `docs/TRUST_MODEL.md`. Tickets are now written to disk before anything is
+  submitted, which is what stops a third.
+
+Corrections to this file's own claims, made 2026-08-24:
+
+- **The claim leg no longer reverts with `NON_ZERO_VALUE`.** It was a stale note
+  index; the fix is waiting for the settled pin to pass the register
+  transaction. `docs/evidence/2026-08-23-claim-leg-diagnosis.md`.
+- **Fact 9's Sepolia half is out of date.** Sepolia discovery was returning
+  `503 STORAGE_ERROR` when probed on 2026-08-23; on 2026-08-24 it served every
+  count and probe in the v2 lifecycle without a failure. Both services are
+  intermittent rather than one being broken.
+- **v2 added a step the API facts above do not mention.** A payout must be
+  licensed on the registry with `authorize_payout` before the anonymizer will
+  escrow against it. Without it anyone can burn a passed proposal's payout cap
+  to zero permanently, because the anonymizer is handed value with no sender and
+  cannot tell the DAO's spending from a stranger's.
+  `docs/evidence/2026-08-23-cap-burning.md`.
 
 ## Definition of done
 
