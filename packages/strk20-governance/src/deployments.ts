@@ -474,6 +474,39 @@ export const LEDGER: readonly LedgerEntry[] = [
     detail:
       "The licence the anonymizer requires before it will escrow anything. Without it anyone could burn a passed proposal's cap to zero permanently, because the anonymizer is handed value with no sender and cannot tell the DAO's spending from a stranger's.",
   },
+  {
+    hash: "0x713a8fd9aa1bc5362785a83a9e8c6e7ac178a3159d96672c31030734dd10ded",
+    network: "mainnet",
+    kind: "shield",
+    block: 13802603,
+    scores: false,
+    through: null,
+    what: "Shield 1 STRK to fund the payout",
+    detail:
+      "The register leg withdraws from a SHIELDED balance, and the pool actor's was zero — its previous 5 STRK had become the ballot. Shielding and spending are separate acts.",
+  },
+  {
+    hash: "0xc64f28b2a0a19b77acd8ac4b66028836b73c6097a51ca9e6243b0652d747e9",
+    network: "mainnet",
+    kind: "payout-register",
+    block: 13802692,
+    scores: true,
+    through: "anonymizer",
+    what: "1 STRK escrowed against a commitment",
+    detail:
+      "The pool withdrew to GovernanceAnonymizer and called its privacy_invoke; the contract checked the registry's licence, checked its own escrow ledger, and parked the value against a commitment only the preimage opens. Returns an empty span, so no open note is created.",
+  },
+  {
+    hash: "0x1174d9894bf1fc85f13d06e325e166a03ba1c36d25e4fd86a9f483b6664bd84",
+    network: "mainnet",
+    kind: "payout-claim",
+    block: 13802714,
+    scores: true,
+    through: "anonymizer",
+    what: "The first claimed payout on mainnet",
+    detail:
+      "The preimage opened the commitment and the anonymizer approved the pool to pull exactly the escrowed amount into an open note. Afterwards outstanding is 0 and unattached is 0 — nothing stranded, which is the thing 14 STRK in the v1 anonymizer could not manage.",
+  },
 ];
 
 export const DEMO_URL = "https://aperture-strk20.vercel.app";

@@ -20,6 +20,8 @@ import { dirname, resolve } from "node:path";
 import { mintPayout, parseTokenAmount } from "@oojae/strk20-governance";
 import { Open, createPrivateTransfers } from "@starkware-libs/starknet-privacy-sdk";
 import { loadConfig } from "./config.ts";
+import { describeError } from "./report-error.ts";
+import { ensurePoolAllowance } from "./pool-allowance.ts";
 
 const MATURITY_BLOCKS = 10;
 
@@ -363,6 +365,15 @@ async function main(argv: string[]): Promise<number> {
   // 1. Register — the pool withdraws to the helper, which parks the value
   //    against the commitment and returns an empty span.
   console.log("1. Registering the payout (pool -> our anonymizer)");
+  // The pool pulls its flat fee from this account. The escrowed value comes out
+  // of the shielded balance via the withdraw, so only the fee needs an
+  // allowance — and the allowance is CONSUMED, so every leg needs its own.
+  await ensurePoolAllowance({
+    provider,
+    account,
+    pool: config.poolAddress,
+    token: config.strkTokenAddress,
+  });
   const registerResult = await (async () =>
     await build(true)
       .with(token, (t) => {
@@ -399,6 +410,12 @@ async function main(argv: string[]): Promise<number> {
   // 2. Claim — an open note is created for the helper to fill, and the helper
   //    approves the pool to pull exactly the escrowed amount into it.
   console.log("2. Claiming the payout (preimage -> open note credited back)");
+  await ensurePoolAllowance({
+    provider,
+    account,
+    pool: config.poolAddress,
+    token: config.strkTokenAddress,
+  });
   const claimTx = await submit(
     await build(false)
       .with(token, (t) => {
@@ -436,4 +453,12 @@ async function main(argv: string[]): Promise<number> {
   return 0;
 }
 
-process.exit(await main(process.argv));
+// A pool transaction carries its proof inline, so an unhandled rejection here
+// prints tens of thousands of characters of base64 with the cause buried in it,
+// or truncated out of it entirely. Every other entry point learned this already.
+try {
+  process.exit(await main(process.argv));
+} catch (error) {
+  console.error(`\nFAILED\n  ${describeError(error, 1400)}`);
+  process.exit(1);
+}
