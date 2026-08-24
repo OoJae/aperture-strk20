@@ -133,12 +133,12 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
     contractVersion: "v2",
     indexerUrl: "https://discovery-service.alpha-mainnet.sw-dev.io",
     provingServiceUrl: "https://transaction-prover.alpha-mainnet.sw-dev.io",
-    // No proposal exists on the v2 registry yet, so no identity has been
-    // derived, let alone deployed. This stays false until three accounts are
-    // live at the addresses the registry publishes — the v1 mainnet registry
+    // True as of proposal 1: all three accounts are deployed at the addresses
+    // the registry publishes AND registered with the pool, so each can actually
+    // receive a sealed vote. Both halves are required — the v1 mainnet registry
     // published three addresses with nothing at them and the demo offered them
     // to voters, which is the reason this field exists at all.
-    ballotIdentitiesLive: false,
+    ballotIdentitiesLive: true,
     superseded: [
       {
         address:

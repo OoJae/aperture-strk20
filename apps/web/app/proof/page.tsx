@@ -24,10 +24,19 @@ import {
  * disagreed about how many payouts had run.
  */
 
-const CONTRACTS = [
+const CONTRACTS: { name: string; address: string; superseded?: string }[] = [
   { name: "ProposalRegistry", address: REGISTRY_ADDRESS },
   { name: "GovernanceAnonymizer", address: ANONYMIZER_ADDRESS },
   { name: "STRK20 pool", address: POOL_ADDRESS },
+  // Superseded generations belong on this page, because most of the
+  // transactions below ran through them. Listing only the live pair would put
+  // ten transactions next to two contracts that none of them touched, which is
+  // the kind of gap a page called "everything here is checkable" cannot have.
+  ...(DEPLOYMENTS[ACTIVE].superseded ?? []).map((s) => ({
+    name: s.role,
+    address: s.address,
+    superseded: s.why,
+  })),
 ];
 
 const SCORED = scoring(ACTIVE);
@@ -68,7 +77,12 @@ export default function Proof() {
         <ul className="rows plain">
           {CONTRACTS.map((c, i) => (
             <li className="row fade" key={c.name} data-reveal data-delay={i * 70}>
-              <span>{c.name}</span>
+              <span>
+                {c.name}
+                {c.superseded ? (
+                  <span className="dim"> · superseded, kept because transactions below touched it</span>
+                ) : null}
+              </span>
               <a
                 className="mono dim"
                 href={`${VOYAGER}/contract/${c.address}`}
