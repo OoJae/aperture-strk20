@@ -132,7 +132,7 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
 
   {
     name: "APERTURE_REGISTRY_ADDRESS",
-    requirement: "always",
+    requirement: "mainnet",
     secret: false,
     group: "Aperture contracts",
     description: "ProposalRegistry on the selected network. See docs/DEPLOYMENTS.md.",
@@ -210,6 +210,20 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     description:
       "Signs for every ballot identity account. Must be the private half of " +
       "DAO_MASTER_PUBLIC_KEY, and the loader checks that it is.",
+  },
+  {
+    name: "APERTURE_REGISTRY_ADDRESS_SEPOLIA",
+    requirement: "sepolia",
+    secret: false,
+    group: "Contracts",
+    description: "Sepolia ProposalRegistry. A mainnet address here fails as \"Contract not found\".",
+  },
+  {
+    name: "APERTURE_ANONYMIZER_ADDRESS_SEPOLIA",
+    requirement: "optional",
+    secret: false,
+    group: "Contracts",
+    description: "Sepolia GovernanceAnonymizer.",
   },
   {
     name: "INDEXER_URL_SEPOLIA",

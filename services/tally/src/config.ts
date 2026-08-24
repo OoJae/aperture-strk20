@@ -155,6 +155,14 @@ const NETWORK_VARS: Record<
      */
     indexer: string;
     proving: string;
+    /**
+     * Our own contracts, per network — the third pair of variables to need this
+     * after the accounts and the service URLs. Pointing a Sepolia network at a
+     * mainnet registry fails with "Contract not found", which reads like a
+     * broken RPC.
+     */
+    registry: string;
+    anonymizer: string;
   }
 > = {
   mainnet: {
@@ -168,6 +176,8 @@ const NETWORK_VARS: Record<
     operatorViewingKey: "TALLY_OPERATOR_VIEWING_KEY",
     indexer: "INDEXER_URL",
     proving: "PROVING_SERVICE_URL",
+    registry: "APERTURE_REGISTRY_ADDRESS",
+    anonymizer: "APERTURE_ANONYMIZER_ADDRESS",
   },
   sepolia: {
     rpc: ["STARKNET_RPC_URL_SEPOLIA_SNCAST", "STARKNET_RPC_URL_SEPOLIA"],
@@ -180,6 +190,8 @@ const NETWORK_VARS: Record<
     operatorViewingKey: "TALLY_OPERATOR_VIEWING_KEY_SEPOLIA",
     indexer: "INDEXER_URL_SEPOLIA",
     proving: "PROVING_SERVICE_URL_SEPOLIA",
+    registry: "APERTURE_REGISTRY_ADDRESS_SEPOLIA",
+    anonymizer: "APERTURE_ANONYMIZER_ADDRESS_SEPOLIA",
   },
 };
 
@@ -338,6 +350,8 @@ export function loadConfig(explicitEnv?: NodeJS.ProcessEnv): TallyConfig {
     if (spec.name.startsWith("STRK20_POOL_ADDRESS")) return false;
     if (spec.name === vars.indexer || spec.name === vars.proving) return !env[spec.name];
     if (/^(INDEXER_URL|PROVING_SERVICE_URL)/.test(spec.name)) return false;
+    if (spec.name === vars.registry) return !env[spec.name];
+    if (/^APERTURE_(REGISTRY|ANONYMIZER)_ADDRESS/.test(spec.name)) return false;
     return !env[spec.name];
   });
   if (!rpcVar) {
@@ -389,8 +403,8 @@ export function loadConfig(explicitEnv?: NodeJS.ProcessEnv): TallyConfig {
     network,
     rpcUrl: env[rpcVar!]!,
     poolAddress: env[vars.pool]!,
-    registryAddress: env.APERTURE_REGISTRY_ADDRESS!,
-    anonymizerAddress: env.APERTURE_ANONYMIZER_ADDRESS,
+    registryAddress: env[vars.registry]!,
+    anonymizerAddress: env[vars.anonymizer],
     strkTokenAddress: env.STRK_TOKEN_ADDRESS!,
     indexerUrl: parseServiceUrl(vars.indexer, env[vars.indexer]!, network),
     provingServiceUrl: parseServiceUrl(vars.proving, env[vars.proving]!, network),

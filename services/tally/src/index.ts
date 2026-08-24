@@ -20,7 +20,9 @@ import { runTally } from "./tally.ts";
 
 export { loadConfig } from "./config.ts";
 export { runTally } from "./tally.ts";
-export { buildRefundQueue, executeRefunds } from "./refunds.ts";
+export { buildRefundQueue } from "./refunds.ts";
+import { refundStatus } from "./refund-receipts.ts";
+// Paying them needs the network and a key; see refund-lifecycle.ts.
 
 /** Blocks behind the head to pin to, so the count sits on settled state. */
 const FINALITY_LAG = 10;
@@ -116,11 +118,25 @@ async function main(argv: string[]): Promise<number> {
   console.log(
     `  result   ${willPass(tally, proposal.quorum) ? "PASSES" : "does not pass"}`,
   );
-  console.log(
-    `\n  ${run.refunds.entries.length} ballot(s) owed ` +
-      `${formatStrk(run.refunds.totalAmount)} STRK in refunds ` +
-      `(execution blocked — see docs/TRUST_MODEL.md)`,
-  );
+  // Split by what has actually been paid. The queue is derived from a pinned
+  // count, so a ballot stays in it forever; reporting the total as "owed" after
+  // the stake is back with the voter would be false within a day of being true.
+  const refunds = refundStatus(config.network, run.refunds);
+  if (refunds.settled.length > 0) {
+    console.log(
+      `\n  ${refunds.settled.length} of ${run.refunds.entries.length} ballot(s) refunded ` +
+        `(${formatStrk(refunds.settledAmount)} STRK returned)`,
+    );
+  }
+  if (refunds.outstanding.length > 0) {
+    console.log(
+      `  ${refunds.outstanding.length} ballot(s) still owed ` +
+        `${formatStrk(refunds.outstandingAmount)} STRK ` +
+        `— pay with: node src/refund-lifecycle.ts ${proposalId}`,
+    );
+  } else if (run.refunds.entries.length > 0) {
+    console.log(`  Every ballot in this count has been refunded.`);
+  }
 
   // The pinned block used to reach no durable record at all — the trust model
   // rests on "anyone can re-run the same count and compare", and nothing
