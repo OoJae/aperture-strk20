@@ -96,31 +96,64 @@ works, proving on mainnet is untested, and the lifecycle has not been run there
 because nobody has tried since those endpoints were found. A `/health` route is
 not a proof.
 
-**As of 2026-08-24 the remaining obstacle is funding, not infrastructure.** The
-v2 contracts exist and the full lifecycle has been run on Sepolia. What mainnet
-needs is enough STRK held at once, and the binding constraint is not the flat
-fee — it is resource bounds. A viewing-key registration on Sepolia was refused
-at a 4.88 STRK balance because the node wanted about 5.77 STRK of l2 gas as a
-ceiling; bounds are a ceiling rather than a bill and the transaction settles for
-a fraction, but an account that cannot cover the ceiling never runs. Mainnet's
-l2 gas price currently reads the same as Sepolia's, so the difference is the
-flat fee: 6 STRK against 2.
+**Superseded 2026-08-24: the lifecycle has now run on mainnet.** This section
+argued that the remaining obstacle was funding rather than infrastructure, and
+costed it. That was right, and it is history now — the mainnet record is below.
+Two numbers from it are worth keeping, because both estimates were wrong in
+instructive ways:
 
-Peak requirement for one ballot and one payout, with three ballot identities
-funded at 20 STRK each:
+- **Declaring the two contract classes cost 30.7 STRK**, against the 1–3 the
+  estimate gave. The estimate reasoned from invoke costs; a class declaration is
+  priced by bytecode and dominates everything else in the lifecycle.
+- **Gas ran ~2.7 STRK per pool transaction on top of the 6 STRK flat fee**, so
+  the fee was never the binding constraint. An account must also cover the
+  resource-bound *ceiling* or validation refuses the transaction before it runs.
 
-| | STRK |
+## Mainnet, v2
+
+| | Address |
 |---|---|
-| deploy, proposal, finalize, authorize (gas only) | ~3 |
-| three ballot identities, held simultaneously | 60 |
-| shield 5 STRK of vote weight, plus one flat fee | 11 |
-| cast | 6 |
-| one 2 STRK payout: register and claim | 14 |
-| **peak held at once** | **~94** |
-| recoverable afterwards by `sweep-ballot-accounts` | ~40 |
-| **net burn** | **~55** |
+| `ProposalRegistry` (v2) | `0x02994d8a2b9a78d7c6c3d49696a22ec2010ffa120da09481ed1e5065e770e989` |
+| `GovernanceAnonymizer` (v2) | `0x01379a8daf18dfbb24b6ec80feb846b6445692090ab34ba0b286d49d1c04e1c5` |
+| ballot domain | `0x6e0f51686460107fce8af040705544c0f8f0d27c5dd5c1f463dc9808605669e` |
 
-The deployer holds 53.4 STRK. Each additional payout adds 14.
+Deployed 2026-08-24. The ballot domain was verified against an independent
+derivation **before** the anonymizer went out, because its registry pointer is
+write-once. The OpenZeppelin ballot account class was confirmed declared on
+mainnet first — a registry constructed with a class that does not exist there
+would publish three addresses no account could ever be deployed at.
+
+### The lifecycle, proposal 1
+
+Window `13798033 .. 13799084`.
+
+| | |
+|---|---|
+| create | `0x4f299f25…` |
+| shield 5 STRK | `0xd3afbc3d…` block 13798108 |
+| **cast (private)** | `0x133b6a35…` block **13798132** |
+| finalize | `0x61ae84ef…` block 13799264 |
+| licence | `0x41571a35…` block 13799320 |
+| register | `0xc64f28b2…` block 13802692 |
+| **claim** | `0x1174d989…` block 13802714 |
+
+Published: 5 STRK for, `counted_through` 13799084 — equal to `end_block`, which
+`finalize` asserts — provenance `BallotDerived`, `has_passed` true. Afterwards
+the registry's `authorized` and the anonymizer's `spent` both read 1 STRK, and
+`outstanding` and `unattached` are both zero.
+
+### A separate account touches the pool
+
+`0x6c5d4882…`. The original mainnet operator is registered with the pool under a
+viewing key that is in none of our env files, and the pool binds an address to
+one **write-once** — so that account can never spend or read a shielded note
+again. All ten historical mainnet transactions have ten different senders, none
+pool-registered: they are relayers, so there was no second identity of ours to
+fall back on.
+
+The roles are split as a result, and the split is the more honest model. Writing
+a tally is an identity the registry names and fixes at construction. Touching
+the pool is whoever holds a registered viewing key.
 
 ## Sepolia
 

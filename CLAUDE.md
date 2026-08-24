@@ -163,12 +163,15 @@ package · `apps/web` demo dapp · `services/tally` server-side tally worker ·
 
 ## Where we are
 
-Updated 2026-08-24.
+Updated 2026-08-24, after the mainnet lifecycle completed.
 
-**Mainnet runs v1.** Two contracts, ten transactions in `strk20.json`, six of
-them through our own anonymizer, demo deployed with no login wall.
+**Mainnet runs v2, end to end.** Registry `0x02994d8a…`, anonymizer
+`0x01379a8d…`. A sealed ballot cast **inside** its window, finalized with
+`counted_through == end_block` and `BallotDerived`, and a payout registered and
+**claimed**. 22 transactions in `strk20.json`, 11 through our own contracts. The
+demo is deployed with no login wall and serves these contracts.
 
-**Sepolia runs v2, and the whole lifecycle works there.** Registry
+**Sepolia runs the same v2 lifecycle.** Registry
 `0x058b9e29…`, anonymizer `0x03986832…`. A sealed ballot cast **inside** its
 window, finalized with `counted_through == end_block` and `BallotDerived`, and a
 payout registered and **claimed** — the first claimed payout on any network.
@@ -178,17 +181,16 @@ hashes.
 
 What is not done:
 
-- **v2 is not on mainnet.** The obstacle is funding, not infrastructure: peak
-  ~94 STRK held at once for one ballot and one payout, ~40 recoverable by
-  `scripts/sweep-ballot-accounts.ts`, ~55 net. The deployer holds 53.4. The
-  binding constraint is resource **bounds**, not the flat fee — a registration
-  was refused at a 4.88 STRK balance because the node wanted ~5.77 STRK of l2
-  gas as a ceiling.
 - **Refunds** are computed but have no payee recorded, and paying one needs a
-  private transfer.
+  private transfer. Voting is a one-way stake until this changes.
 - **No demo video.**
-- **`@oojae/strk20-governance` is publish-ready but unpublished** — that needs
-  the maintainer's npm credentials and claims the name irreversibly.
+- **The tally is checkable, not provable.** `finalize` publishes the block it
+  counted through, so a second party with the viewing keys can re-run the count
+  and compare. Nothing proves the published sum is the correct sum of the
+  ballots actually cast.
+- **One key holds the treasury.** The tally operator is the only address that
+  can license a payout, and it chooses the commitment, so it chooses the
+  recipient — bounded by the proposal's cap, and nothing else.
 - **34.5 STRK is permanently locked**, 14 in the v1 mainnet anonymizer and 20.5
   in the v1 Sepolia one. Both are the same failure — a payout preimage displayed
   once and never stored, against a contract with no sweep. See

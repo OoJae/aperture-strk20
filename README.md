@@ -37,7 +37,7 @@ revert was a stale note index: discovery and proving share one block parameter,
 so a pin chosen before the transaction it depends on reads pre-transaction state,
 and the pool rejects the resulting index by naming a storage slot rather than the
 staleness. Waiting for the settled pin to pass the register transaction fixed it,
-and **a payout has since been claimed end to end on Sepolia** — the first on any
+and **payouts have since been claimed end to end on Sepolia and on mainnet** — the first on any
 network. Preimages are now written to disk before anything is submitted, since a
 run that dies after registering has escrowed value only that preimage can open.
 See [`docs/evidence/2026-08-23-claim-leg-diagnosis.md`](docs/evidence/2026-08-23-claim-leg-diagnosis.md).
@@ -129,13 +129,13 @@ Named rather than hidden:
 
 | Piece | State |
 |---|---|
-| Cairo contracts | Implemented, 39 `snforge` tests, deployed to mainnet and Sepolia |
-| Shared TS package | Implemented, 31 tests — ballot derivation, viewing keys, aggregation |
+| Cairo contracts | Implemented, <!--cairo-->81<!--/cairo--> `snforge` tests, deployed to mainnet and Sepolia |
+| Shared TS package | Implemented, <!--ts-->74<!--/ts--> tests — ballot derivation, viewing keys, aggregation |
 | Tally service | Implemented. Discovers notes, aggregates, publishes on-chain. Run against Sepolia |
 | Demo dapp | Live on mainnet, no login |
-| Mainnet transactions | 10 in [`strk20.json`](strk20.json), 6 through our own anonymizer |
-| Sealed-vote lifecycle | Run end to end on **Sepolia**, but the ballot arrived 945 blocks after the window closed and the current worker scores it zero. Being re-run properly. Never run on mainnet |
-| Claiming a payout | **Unfinished** — reverts with `NON_ZERO_VALUE` on every network |
+| Mainnet transactions | 22 in [`strk20.json`](strk20.json), 11 through our own contracts |
+| Sealed-vote lifecycle | Run end to end on **mainnet and Sepolia** — cast inside the window, counted, finalized with the block it counted through. An earlier Sepolia ballot arrived 945 blocks late and is kept on the record with its correction |
+| Claiming a payout | Works on both networks. The mainnet claim is `0x1174d989…` |
 | Refunds | Computed, and undeliverable twice over: no prover, and no payee recorded |
 | Demo video | Not made |
 

@@ -1,9 +1,9 @@
 # Architecture
 
-Status, 2026-08-23. **Mainnet carries v1** — the contracts and three treasury
-payouts. **Sepolia carries v2**, with a full sealed-vote lifecycle: a ballot
-cast inside its window, counted, and finalized against the block the contract
-now demands. v2 is not on mainnet yet.
+Status, 2026-08-24. **v2 runs on both networks, end to end.** On mainnet and on
+Sepolia: a sealed ballot cast inside its voting window, counted, and finalized
+against the block the contract demands, and a treasury payout registered and
+claimed. v1 is superseded on both and holds 34.5 STRK nobody can recover.
 
 Where this document and the code disagree, the code is right and this document
 is a bug. Several statements here were exactly that until 2026-08-23; the

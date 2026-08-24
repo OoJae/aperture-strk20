@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = resolve(ROOT, "apps/web/app/lib/counts.ts");
+const README = resolve(ROOT, "README.md");
 
 const tracked = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" })
   .split("\n")
@@ -54,14 +55,29 @@ const current = (() => {
   }
 })();
 
+/**
+ * The README quotes the same numbers, and typing them there is how it came to
+ * claim 39 Cairo tests against an actual 81. Same generator, same guarantee:
+ * the markers are the only place the figure lives.
+ */
+const readmeCurrent = readFileSync(README, "utf8");
+const readmeWanted = readmeCurrent
+  .replace(/<!--cairo-->\d+<!--\/cairo-->/, `<!--cairo-->${cairo}<!--/cairo-->`)
+  .replace(/<!--ts-->\d+<!--\/ts-->/, `<!--ts-->${typescript}<!--/ts-->`);
+if (!readmeCurrent.includes("<!--cairo-->") || !readmeCurrent.includes("<!--ts-->")) {
+  console.error("README.md has lost its count markers; a number there would now drift silently.");
+  process.exit(1);
+}
+
 if (process.argv.includes("--check")) {
-  if (current === rendered) {
+  if (current === rendered && readmeCurrent === readmeWanted) {
     console.log(`counts in sync: ${cairo} Cairo + ${typescript} TypeScript = ${cairo + typescript}`);
     process.exit(0);
   }
-  console.error("apps/web/app/lib/counts.ts is stale. Run: node scripts/sync-counts.ts");
+  console.error("Test counts are stale in counts.ts or README.md. Run: node scripts/sync-counts.ts");
   process.exit(1);
 }
 
 writeFileSync(OUT, rendered);
+writeFileSync(README, readmeWanted);
 console.log(`counts written: ${cairo} Cairo + ${typescript} TypeScript = ${cairo + typescript}`);

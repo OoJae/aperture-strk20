@@ -36,10 +36,10 @@ here drift from the tree.
 
 | Idea | Where | Status |
 |---|---|---|
-| Sealed ballots, invisible mid-vote | `contracts/src/ballot.cairo`, `packages/strk20-governance` | Built and exercised on Sepolia. A ballot is a private transfer into a per-choice identity derived from public inputs |
+| Sealed ballots, invisible mid-vote | `contracts/src/ballot.cairo`, `packages/strk20-governance` | Built and exercised on **mainnet and Sepolia**. A ballot is a private transfer into a per-choice identity derived from public inputs, cast inside its voting window and counted through a block the contract pins |
 | Ballot addresses a voter can verify | `apps/web/app/components/BallotIdentities.tsx` | Built — and the page is explicit that agreeing on a derivation is not evidence an account exists there, which is the part that was misleading before |
 | Treasury payouts that hide the recipient | `contracts/src/governance_anonymizer.cairo` | Built, 6 mainnet executions. The amount is public; only the recipient is hidden, and `docs/TRUST_MODEL.md` says so |
-| Claiming a payout | `services/tally/src/payout-lifecycle.ts` | **Unfinished.** Reverts with `NON_ZERO_VALUE` on every network |
+| Claiming a payout | `services/tally/src/payout-lifecycle.ts` | Works on mainnet and Sepolia. The revert was a stale note index, not the contract; the fix waits for the settled pin to pass the register transaction. Afterwards `outstanding` and `unattached` both read zero |
 
 ## Documentation and open-source quality (15%)
 
