@@ -373,6 +373,72 @@ export const LEDGER: readonly LedgerEntry[] = [
     what: "Payout through the anonymizer",
     detail: "Same path, a sixth commitment.",
   },
+  {
+    hash: "0x667e23ec64fbed43048929b15b5a23e5641d491a8cd44ce00cee2052161a94",
+    network: "mainnet",
+    kind: "ballot-register",
+    block: 13797273,
+    scores: false,
+    through: null,
+    what: "Pool actor registers its viewing key",
+    detail:
+      "The mainnet account that touches the pool, registered write-once under a key we hold. The previous operator's is lost, which is why this account exists.",
+  },
+  {
+    hash: "0x620ad986d8690feb9d8ecfa85402931b3fd39fae8de1a0b9ec94c85d305acfc",
+    network: "mainnet",
+    kind: "ballot-register",
+    block: 13797393,
+    scores: false,
+    through: null,
+    what: "FOR ballot identity registers its viewing key",
+    detail:
+      "Proposal 1. Until this lands the address the registry publishes cannot receive a sealed vote.",
+  },
+  {
+    hash: "0x22b3a5e28af3a1fc5b8dd0c59de8595105433186d042dbc81bdab9ef5726fa0",
+    network: "mainnet",
+    kind: "ballot-register",
+    block: 13797407,
+    scores: false,
+    through: null,
+    what: "AGAINST ballot identity registers its viewing key",
+    detail:
+      "Proposal 1. All three choices are stood up, so no voter is offered an address nothing can receive at.",
+  },
+  {
+    hash: "0x6db40fc7eb39e605272524b6e82150a21768f67c1e485f1defcaff868597be4",
+    network: "mainnet",
+    kind: "ballot-register",
+    block: 13797423,
+    scores: false,
+    through: null,
+    what: "ABSTAIN ballot identity registers its viewing key",
+    detail:
+      "Proposal 1. Completes the set.",
+  },
+  {
+    hash: "0xd3afbc3d9ffd2a4151be0c7d75dc5bb9c37a56a96bcd4854781b719ae8fbc5",
+    network: "mainnet",
+    kind: "shield",
+    block: 13798108,
+    scores: false,
+    through: null,
+    what: "Shield 5 STRK of vote weight",
+    detail:
+      "Public by design: address, token and amount all show. Only the ballot that follows is private.",
+  },
+  {
+    hash: "0x133b6a35341b328a1f12be900e41b6143083c07189969d9e66c8c8a1d9dddb0",
+    network: "mainnet",
+    kind: "ballot-cast",
+    block: 13798132,
+    scores: false,
+    through: null,
+    what: "Sealed ballot: 5 STRK FOR proposal 1",
+    detail:
+      "Inside the window 13798033..13799084. The pool events carry no amount, no voter and no choice, and the on-chain sender is a relayer; the tally reads it exactly. Emits nothing from our own contracts, so it counts for the organisers' checker and not for this project's stricter claim about itself.",
+  },
 ];
 
 export const DEMO_URL = "https://aperture-strk20.vercel.app";
