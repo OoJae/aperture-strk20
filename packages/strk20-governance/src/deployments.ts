@@ -77,6 +77,8 @@ export type TxKind =
   | "private-transfer"
   | "unshield"
   | "fund-anonymizer"
+  | "proposal-create"
+  | "payout-authorize"
   | "payout-register"
   | "payout-claim"
   | "ballot-register"
@@ -438,6 +440,39 @@ export const LEDGER: readonly LedgerEntry[] = [
     what: "Sealed ballot: 5 STRK FOR proposal 1",
     detail:
       "Inside the window 13798033..13799084. The pool events carry no amount, no voter and no choice, and the on-chain sender is a relayer; the tally reads it exactly. Emits nothing from our own contracts, so it counts for the organisers' checker and not for this project's stricter claim about itself.",
+  },
+  {
+    hash: "0x4f299f25bc15386163780cb7da32a4240e73da09cd1cdbc604f91b381ac407a",
+    network: "mainnet",
+    kind: "proposal-create",
+    block: 13797335,
+    scores: true,
+    through: "registry",
+    what: "Proposal 1 created, with a window genuinely ahead",
+    detail:
+      "v2 rejects a window that has already closed. v1 could not, and the old deploy script passed 0x1 0x0 0x1 — a window that made counted_through a pin to a block predating the proposal.",
+  },
+  {
+    hash: "0x61ae84ef59306c2d91c7933f6b55a5bba5f629cc72c7966574d22147258c5ff",
+    network: "mainnet",
+    kind: "finalize",
+    block: 13799264,
+    scores: true,
+    through: "registry",
+    what: "Tally published: 5 STRK FOR, counted through 13799084",
+    detail:
+      "counted_through equals end_block, which finalize asserts, so the pin is unique per proposal and anyone can re-run the count against the same state. Provenance BallotDerived: summed from notes the ballot identities actually received.",
+  },
+  {
+    hash: "0x41571a3531df7a25615321fbf8e6278241c6b6e351c09d01626b0ae82b8afc6",
+    network: "mainnet",
+    kind: "payout-authorize",
+    block: 13799320,
+    scores: true,
+    through: "registry",
+    what: "1 STRK of the 2 STRK cap committed to one commitment",
+    detail:
+      "The licence the anonymizer requires before it will escrow anything. Without it anyone could burn a passed proposal's cap to zero permanently, because the anonymizer is handed value with no sender and cannot tell the DAO's spending from a stranger's.",
   },
 ];
 

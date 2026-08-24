@@ -15,7 +15,7 @@
  */
 
 import { Account, RpcProvider } from "starknet";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { mintPayout, parseTokenAmount } from "@oojae/strk20-governance";
 import { Open, createPrivateTransfers } from "@starkware-libs/starknet-privacy-sdk";
@@ -81,13 +81,69 @@ async function main(argv: string[]): Promise<number> {
     );
   }
 
-  const { ticket, commitment } = mintPayout({
-    domain: payoutDomain,
-    proposalId,
-    token,
-    amount,
-  });
-  const secret = ticket.secret;
+  // Reuse an unclaimed ticket for these exact terms before minting a new one.
+  //
+  // A payout's budget is committed on the registry per COMMITMENT HASH, and
+  // minting is random, so every retry would otherwise burn another slice of the
+  // proposal's cap on a commitment the previous attempt already paid for. Two
+  // failed attempts against a 2 STRK cap and a 1 STRK payout exhaust it, with
+  // nothing escrowed and nothing claimable — permanently, since the cap is
+  // fixed at proposal creation.
+  //
+  // Only a ticket that is licensed and NOT yet registered is safe to reuse: one
+  // already registered would fail COMMITMENT_EXISTS, and one never licensed is
+  // no cheaper than a fresh mint.
+  const payoutDir = process.env.APERTURE_PAYOUT_DIR ?? ".payouts";
+  const reusable = await (async () => {
+    let files: string[] = [];
+    try {
+      files = readdirSync(payoutDir).filter((f) => f.startsWith(`${config.network}-`));
+    } catch {
+      return undefined;
+    }
+    for (const file of files) {
+      let saved: Record<string, string>;
+      try {
+        saved = JSON.parse(readFileSync(resolve(payoutDir, file), "utf8"));
+      } catch {
+        continue;
+      }
+      if (
+        saved.proposalId !== proposalId.toString() ||
+        saved.amount !== amount.toString() ||
+        BigInt(saved.anonymizer ?? "0x0") !== BigInt(anonymizer) ||
+        BigInt(saved.domain ?? "0x0") !== BigInt(payoutDomain!)
+      ) {
+        continue;
+      }
+      const [, licensed] = (await provider.callContract({
+        contractAddress: config.registryAddress,
+        entrypoint: "payout_authorization",
+        calldata: [saved.commitment!],
+      })) as unknown as string[];
+      if (BigInt(licensed ?? "0x0") === 0n) continue;
+
+      const entry = (await provider.callContract({
+        contractAddress: anonymizer,
+        entrypoint: "get_payout",
+        calldata: [saved.commitment!],
+      })) as unknown as string[];
+      // entry[0] is the token; zero means nothing was ever registered here.
+      if (BigInt(entry[0] ?? "0x0") !== 0n) continue;
+
+      console.log(`Reusing the licensed, unregistered ticket in ${file}.`);
+      console.log(`  Minting a new one would spend more of the proposal's cap.\n`);
+      return { commitment: saved.commitment!, secret: saved.secret! };
+    }
+    return undefined;
+  })();
+
+  const minted = reusable ?? (() => {
+    const { ticket, commitment } = mintPayout({ domain: payoutDomain, proposalId, token, amount });
+    return { commitment, secret: ticket.secret };
+  })();
+  const commitment = minted.commitment;
+  const secret = minted.secret;
 
   // Written to disk BEFORE anything is submitted.
   //
@@ -96,10 +152,7 @@ async function main(argv: string[]): Promise<number> {
   // cannot return it. That is not hypothetical: it is how 14 STRK was lost on
   // mainnet, and how another 0.5 STRK was lost on Sepolia during the very
   // investigation into why. Printing it at the end is too late.
-  const ticketPath = resolve(
-    process.env.APERTURE_PAYOUT_DIR ?? ".payouts",
-    `${config.network}-${commitment.slice(0, 18)}.json`,
-  );
+  const ticketPath = resolve(payoutDir, `${config.network}-${commitment.slice(0, 18)}.json`);
   mkdirSync(dirname(ticketPath), { recursive: true });
   writeFileSync(
     ticketPath,
