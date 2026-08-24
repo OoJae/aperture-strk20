@@ -126,14 +126,60 @@ export class MissingConfigError extends Error {
   }
 }
 
-const NETWORK_VARS: Record<Network, { rpc: readonly string[]; pool: string }> = {
+/**
+ * Every variable whose correct value depends on the network.
+ *
+ * The accounts belong here for the same reason the RPC and pool addresses
+ * always did. They were not, and switching to mainnet therefore meant
+ * hand-editing key material — which produced exactly the failure you would
+ * expect: a mainnet proposal signed by the Sepolia operator, refused with
+ * "contract address is not deployed". A variable that means something different
+ * per network needs the network in its name.
+ */
+const NETWORK_VARS: Record<
+  Network,
+  {
+    rpc: readonly string[];
+    pool: string;
+    operatorAddress: string;
+    operatorKey: string;
+    poolActorAddress: string;
+    poolActorKey: string;
+    poolActorViewingKey: string;
+    operatorViewingKey: string;
+    /**
+     * Per network, because these are the endpoints that decide which chain the
+     * SDK is talking about. Pointing a mainnet pool address at Sepolia's
+     * discovery service fails with "Contract not found at the configured
+     * address", which reads like a wrong pool rather than a wrong indexer.
+     */
+    indexer: string;
+    proving: string;
+  }
+> = {
   mainnet: {
     rpc: ["STARKNET_RPC_URL_SNCAST", "STARKNET_RPC_URL"],
     pool: "STRK20_POOL_ADDRESS",
+    operatorAddress: "TALLY_OPERATOR_ADDRESS",
+    operatorKey: "TALLY_OPERATOR_PRIVATE_KEY",
+    poolActorAddress: "POOL_ACTOR_ADDRESS",
+    poolActorKey: "POOL_ACTOR_PRIVATE_KEY",
+    poolActorViewingKey: "POOL_ACTOR_VIEWING_KEY",
+    operatorViewingKey: "TALLY_OPERATOR_VIEWING_KEY",
+    indexer: "INDEXER_URL",
+    proving: "PROVING_SERVICE_URL",
   },
   sepolia: {
     rpc: ["STARKNET_RPC_URL_SEPOLIA_SNCAST", "STARKNET_RPC_URL_SEPOLIA"],
     pool: "STRK20_POOL_ADDRESS_SEPOLIA",
+    operatorAddress: "TALLY_OPERATOR_ADDRESS_SEPOLIA",
+    operatorKey: "TALLY_OPERATOR_PRIVATE_KEY_SEPOLIA",
+    poolActorAddress: "POOL_ACTOR_ADDRESS_SEPOLIA",
+    poolActorKey: "POOL_ACTOR_PRIVATE_KEY_SEPOLIA",
+    poolActorViewingKey: "POOL_ACTOR_VIEWING_KEY_SEPOLIA",
+    operatorViewingKey: "TALLY_OPERATOR_VIEWING_KEY_SEPOLIA",
+    indexer: "INDEXER_URL_SEPOLIA",
+    proving: "PROVING_SERVICE_URL_SEPOLIA",
   },
 };
 
@@ -290,6 +336,8 @@ export function loadConfig(explicitEnv?: NodeJS.ProcessEnv): TallyConfig {
     if (vars.rpc.includes(spec.name)) return false;
     if (spec.name === vars.pool) return !env[spec.name];
     if (spec.name.startsWith("STRK20_POOL_ADDRESS")) return false;
+    if (spec.name === vars.indexer || spec.name === vars.proving) return !env[spec.name];
+    if (/^(INDEXER_URL|PROVING_SERVICE_URL)/.test(spec.name)) return false;
     return !env[spec.name];
   });
   if (!rpcVar) {
@@ -313,11 +361,11 @@ export function loadConfig(explicitEnv?: NodeJS.ProcessEnv): TallyConfig {
   const voterViewingKey = env.VOTER_VIEWING_KEY
     ? toBigInt("VOTER_VIEWING_KEY", env.VOTER_VIEWING_KEY)
     : undefined;
-  const operatorViewingKey = env.TALLY_OPERATOR_VIEWING_KEY
-    ? toBigInt("TALLY_OPERATOR_VIEWING_KEY", env.TALLY_OPERATOR_VIEWING_KEY)
+  const operatorViewingKey = env[vars.operatorViewingKey]
+    ? toBigInt(vars.operatorViewingKey, env[vars.operatorViewingKey]!)
     : undefined;
-  const poolActorViewingKey = env.POOL_ACTOR_VIEWING_KEY
-    ? toBigInt("POOL_ACTOR_VIEWING_KEY", env.POOL_ACTOR_VIEWING_KEY)
+  const poolActorViewingKey = env[vars.poolActorViewingKey]
+    ? toBigInt(vars.poolActorViewingKey, env[vars.poolActorViewingKey]!)
     : operatorViewingKey;
   if (poolActorViewingKey !== undefined) assertValidViewingKey(poolActorViewingKey);
   if (voterViewingKey !== undefined) assertValidViewingKey(voterViewingKey);
@@ -333,7 +381,8 @@ export function loadConfig(explicitEnv?: NodeJS.ProcessEnv): TallyConfig {
       }
     })(),
     VOTER_VIEWING_KEY: voterViewingKey,
-    TALLY_OPERATOR_VIEWING_KEY: operatorViewingKey,
+    [vars.operatorViewingKey]: operatorViewingKey,
+    [vars.poolActorViewingKey]: poolActorViewingKey,
   });
 
   return {
@@ -343,20 +392,20 @@ export function loadConfig(explicitEnv?: NodeJS.ProcessEnv): TallyConfig {
     registryAddress: env.APERTURE_REGISTRY_ADDRESS!,
     anonymizerAddress: env.APERTURE_ANONYMIZER_ADDRESS,
     strkTokenAddress: env.STRK_TOKEN_ADDRESS!,
-    indexerUrl: parseServiceUrl("INDEXER_URL", env.INDEXER_URL!, network),
-    provingServiceUrl: parseServiceUrl("PROVING_SERVICE_URL", env.PROVING_SERVICE_URL!, network),
+    indexerUrl: parseServiceUrl(vars.indexer, env[vars.indexer]!, network),
+    provingServiceUrl: parseServiceUrl(vars.proving, env[vars.proving]!, network),
     ballotAccountClassHash: env.BALLOT_ACCOUNT_CLASS_HASH!,
     daoMasterPublicKey,
     ballotViewingSeed,
     ballotAccountPrivateKey,
     voterViewingKey,
     operatorViewingKey,
-    operatorAddress: env.TALLY_OPERATOR_ADDRESS!,
-    operatorPrivateKey: env.TALLY_OPERATOR_PRIVATE_KEY!,
+    operatorAddress: env[vars.operatorAddress]!,
+    operatorPrivateKey: env[vars.operatorKey]!,
     // Falls back to the operator, which is exactly right on a network where one
     // account does both jobs.
-    poolActorAddress: env.POOL_ACTOR_ADDRESS ?? env.TALLY_OPERATOR_ADDRESS!,
-    poolActorPrivateKey: env.POOL_ACTOR_PRIVATE_KEY ?? env.TALLY_OPERATOR_PRIVATE_KEY!,
+    poolActorAddress: env[vars.poolActorAddress] ?? env[vars.operatorAddress]!,
+    poolActorPrivateKey: env[vars.poolActorKey] ?? env[vars.operatorKey]!,
     poolActorViewingKey,
   };
 }

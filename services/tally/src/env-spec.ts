@@ -84,7 +84,7 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
 
   {
     name: "INDEXER_URL",
-    requirement: "always",
+    requirement: "mainnet",
     secret: false,
     group: "STRK20 infrastructure",
     description:
@@ -96,7 +96,7 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
   },
   {
     name: "PROVING_SERVICE_URL",
-    requirement: "always",
+    requirement: "mainnet",
     secret: false,
     group: "STRK20 infrastructure",
     description:
@@ -212,6 +212,65 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
       "DAO_MASTER_PUBLIC_KEY, and the loader checks that it is.",
   },
   {
+    name: "INDEXER_URL_SEPOLIA",
+    requirement: "sepolia",
+    secret: false,
+    group: "Services",
+    description: "Sepolia discovery service. A mainnet pool read against this fails as \"Contract not found\".",
+  },
+  {
+    name: "PROVING_SERVICE_URL_SEPOLIA",
+    requirement: "sepolia",
+    secret: false,
+    group: "Services",
+    description: "Sepolia proving service.",
+  },
+  {
+    name: "TALLY_OPERATOR_ADDRESS_SEPOLIA",
+    requirement: "sepolia",
+    secret: false,
+    group: "Secrets",
+    description: "Sepolia's tally operator. A different account from mainnet's.",
+  },
+  {
+    name: "TALLY_OPERATOR_PRIVATE_KEY_SEPOLIA",
+    requirement: "sepolia",
+    secret: true,
+    group: "Secrets",
+    description: "Signs for TALLY_OPERATOR_ADDRESS_SEPOLIA.",
+  },
+  {
+    name: "TALLY_OPERATOR_VIEWING_KEY_SEPOLIA",
+    requirement: "optional",
+    secret: true,
+    group: "Secrets",
+    description:
+      "Sepolia operator's pool viewing key. SENT TO THE INDEXER IN CLEARTEXT.",
+  },
+  {
+    name: "POOL_ACTOR_ADDRESS_SEPOLIA",
+    requirement: "optional",
+    secret: false,
+    group: "Secrets",
+    description:
+      "Sepolia's pool actor, if it differs from its tally operator. It does " +
+      "not today, so this is unset and the operator is used.",
+  },
+  {
+    name: "POOL_ACTOR_PRIVATE_KEY_SEPOLIA",
+    requirement: "optional",
+    secret: true,
+    group: "Secrets",
+    description: "Signs for POOL_ACTOR_ADDRESS_SEPOLIA.",
+  },
+  {
+    name: "POOL_ACTOR_VIEWING_KEY_SEPOLIA",
+    requirement: "optional",
+    secret: true,
+    group: "Secrets",
+    description: "Sepolia pool actor's viewing key. Defaults to the operator's.",
+  },
+  {
     name: "POOL_ACTOR_ADDRESS",
     requirement: "optional",
     secret: false,
@@ -258,14 +317,14 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
   },
   {
     name: "TALLY_OPERATOR_ADDRESS",
-    requirement: "always",
+    requirement: "mainnet",
     secret: false,
     group: "Secrets",
     description: "Account that publishes tallies on-chain.",
   },
   {
     name: "TALLY_OPERATOR_PRIVATE_KEY",
-    requirement: "always",
+    requirement: "mainnet",
     secret: true,
     group: "Secrets",
     description: "Signs the finalize transaction.",

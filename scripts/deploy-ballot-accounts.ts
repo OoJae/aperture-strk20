@@ -59,7 +59,7 @@ const FUNDING = {
   // flat fee and a register needs about 10. Fifteen is 50% headroom on a
   // measured figure, which is a different thing from the 20 that was here
   // before — that was a guess with a safety factor on top of a guess.
-  mainnet: 15n * 10n ** 18n,
+  mainnet: 13n * 10n ** 18n,
 } as const;
 
 function loadEnv(): Record<string, string> {
