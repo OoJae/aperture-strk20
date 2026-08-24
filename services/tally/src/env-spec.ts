@@ -159,6 +159,16 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
       "anonymizer has no sweep, so losing one strands the value permanently.",
   },
   {
+    name: "APERTURE_REFUND_DIR",
+    requirement: "optional",
+    secret: false,
+    group: "Operations",
+    description:
+      "Where refund receipts are written, default .refunds. Written BEFORE the " +
+      "transfer is submitted, so a run that dies mid-way cannot pay twice on " +
+      "the retry. Same reasoning as APERTURE_PAYOUT_DIR.",
+  },
+  {
     name: "APERTURE_ANONYMIZER_ADDRESS",
     requirement: "optional",
     secret: false,
