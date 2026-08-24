@@ -13,6 +13,7 @@ import {
   aggregateNotes,
   deriveBallotIdentities,
   deriveBallotViewingKey,
+  computeBallotSetCommitment,
 } from "@oojae/strk20-governance";
 import type {
   BallotIdentity,
@@ -36,6 +37,13 @@ export interface TallyRun {
   /** The window the count was scoped to, so a re-run can use the same one. */
   window: { startBlock: number; endBlock: number };
   perIdentity: Array<{ identity: BallotIdentity; noteCount: number }>;
+  /**
+   * Binds this aggregate to the exact ballots behind it.
+   *
+   * Computed from the same deduped set the tally sums, so the two cannot
+   * describe different ballots — which is the whole point of publishing it.
+   */
+  ballotCommitment: string;
 }
 
 export async function runTally(
@@ -88,9 +96,20 @@ export async function runTally(
     notesByChoice[identity.choice] = notes;
   }
 
+  // From the deduped set, so the commitment and the sum describe the same
+  // ballots by construction rather than by two callers agreeing to be careful.
+  const counted = deduped.flatMap(({ identity, notes }) =>
+    notes.map((note) => ({
+      noteId: note.id,
+      amount: note.amount,
+      choice: identity.choice,
+    })),
+  );
+
   return {
     tally: aggregateNotes(proposalId, notesByChoice as never),
     refunds: buildRefundQueue(proposalId, deduped),
+    ballotCommitment: computeBallotSetCommitment(counted),
     blockHash,
     blockNumber,
     window: { startBlock: proposal.startBlock, endBlock: proposal.endBlock },

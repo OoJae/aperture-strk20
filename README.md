@@ -129,8 +129,8 @@ Named rather than hidden:
 
 | Piece | State |
 |---|---|
-| Cairo contracts | Implemented, <!--cairo-->81<!--/cairo--> `snforge` tests, deployed to mainnet and Sepolia |
-| Shared TS package | Implemented, <!--ts-->77<!--/ts--> tests — ballot derivation, viewing keys, aggregation |
+| Cairo contracts | Implemented, <!--cairo-->91<!--/cairo--> `snforge` tests, deployed to mainnet and Sepolia |
+| Shared TS package | Implemented, <!--ts-->85<!--/ts--> tests — ballot derivation, viewing keys, aggregation |
 | Tally service | Implemented. Discovers notes, aggregates, publishes on-chain. Run against Sepolia |
 | Demo dapp | Live on mainnet, no login |
 | Mainnet transactions | 22 in [`strk20.json`](strk20.json), 11 through our own contracts |

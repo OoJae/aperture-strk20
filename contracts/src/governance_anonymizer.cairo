@@ -107,17 +107,10 @@ pub const PAYOUT_COMMITMENT_TAG: felt252 = 'APERTURE_PAYOUT:V2';
 /// registration: a holder of the secret cannot open for more than was escrowed,
 /// and a secret from one deployment is worthless on another.
 pub fn compute_commitment_hash(
-    domain: felt252,
-    proposal_id: u64,
-    token: ContractAddress,
-    amount: u128,
-    secret: felt252,
+    domain: felt252, proposal_id: u64, token: ContractAddress, amount: u128, secret: felt252,
 ) -> felt252 {
     core::poseidon::poseidon_hash_span(
-        [
-            PAYOUT_COMMITMENT_TAG, domain, proposal_id.into(), token.into(), amount.into(),
-            secret,
-        ]
+        [PAYOUT_COMMITMENT_TAG, domain, proposal_id.into(), token.into(), amount.into(), secret]
             .span(),
     )
 }
@@ -391,9 +384,7 @@ pub mod GovernanceAnonymizer {
             // `has_passed`, which is a permanent boolean carrying no amount and
             // no token — an unlimited, reusable licence over any token the
             // caller named.
-            let registry = IProposalRegistryDispatcher {
-                contract_address: self.registry.read(),
-            };
+            let registry = IProposalRegistryDispatcher { contract_address: self.registry.read() };
             let terms = registry.payout_terms(proposal_id);
             assert(terms.passed, errors::PROPOSAL_NOT_PASSED);
             assert(token == terms.token, errors::WRONG_PAYOUT_TOKEN);
@@ -461,14 +452,9 @@ pub mod GovernanceAnonymizer {
 
             self
                 .payouts
-                .write(
-                    commitment_hash,
-                    PayoutEntry { token, amount, proposal_id, claimed: false },
-                );
+                .write(commitment_hash, PayoutEntry { token, amount, proposal_id, claimed: false });
             self.outstanding.write(token, outstanding_after);
-            self
-                .spent
-                .write(proposal_id, spent_after.try_into().expect(errors::AMOUNT_OVERFLOW));
+            self.spent.write(proposal_id, spent_after.try_into().expect(errors::AMOUNT_OVERFLOW));
 
             self
                 .emit(

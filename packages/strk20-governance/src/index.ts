@@ -62,6 +62,13 @@ export type { RawReceipt, ReceiptContext, ReceiptVerdict } from "./receipt.ts";
 export { AmountParseError, U128_MAX, U64_MAX, assertFits, parseTokenAmount } from "./amount.ts";
 
 export {
+  BALLOT_SET_TAG,
+  EMPTY_BALLOT_SET,
+  computeBallotSetCommitment,
+} from "./ballot-set.ts";
+export type { CountedBallot } from "./ballot-set.ts";
+
+export {
   PAYOUT_TAG,
   computePayoutCommitment,
   generatePayoutSecret,

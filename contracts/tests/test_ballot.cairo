@@ -88,8 +88,9 @@ fn ballot_salt_matches_the_typescript_vector() {
     // v1 pinned compute_address against raw salts and never pinned the Poseidon
     // salt across languages at all.
     assert!(
-        ballot_salt(TEST_DOMAIN, 1, Choice::For) ==
-            0x41c213dffecbb88cd6e873c6d089ed170e91459ad0e82d073a9a586b983000e,
+        ballot_salt(
+            TEST_DOMAIN, 1, Choice::For,
+        ) == 0x41c213dffecbb88cd6e873c6d089ed170e91459ad0e82d073a9a586b983000e,
         "the salt must match the TypeScript implementation",
     );
 }
@@ -97,10 +98,11 @@ fn ballot_salt_matches_the_typescript_vector() {
 #[test]
 fn ballot_address_matches_the_typescript_vector() {
     assert!(
-        ballot_address(TEST_DOMAIN, 1, Choice::For, CLASS_HASH, MASTER_PUB) ==
-            0x43f352304641b2e5e0d0e3569784bfd1ce16a5f30ff8114d3e4d5cff1d9544d
-                .try_into()
-                .unwrap(),
+        ballot_address(
+            TEST_DOMAIN, 1, Choice::For, CLASS_HASH, MASTER_PUB,
+        ) == 0x43f352304641b2e5e0d0e3569784bfd1ce16a5f30ff8114d3e4d5cff1d9544d
+            .try_into()
+            .unwrap(),
         "the end-to-end address must match the TypeScript implementation",
     );
 }
@@ -114,8 +116,9 @@ fn the_domain_separates_chains() {
     let sepolia = ballot_domain('SN_SEPOLIA', 0x111.try_into().unwrap(), 'E1');
     assert!(main != sepolia, "two chains must not share a domain");
     assert!(
-        ballot_address(main, 1, Choice::For, CLASS_HASH, MASTER_PUB) !=
-            ballot_address(sepolia, 1, Choice::For, CLASS_HASH, MASTER_PUB),
+        ballot_address(
+            main, 1, Choice::For, CLASS_HASH, MASTER_PUB,
+        ) != ballot_address(sepolia, 1, Choice::For, CLASS_HASH, MASTER_PUB),
         "two chains must not share a ballot address",
     );
 }

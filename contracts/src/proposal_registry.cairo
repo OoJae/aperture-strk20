@@ -77,6 +77,26 @@ pub struct PayoutAuthorization {
     pub amount: u128,
 }
 
+/// A payout the operator has announced but cannot yet use.
+///
+/// The timelock exists because the operator is the only address that can
+/// license a payout and it chooses the commitment, so it chooses the recipient.
+/// Announcing first gives the DAO a window in which to see a payout coming and
+/// react before it can be registered — the difference between "one key spends
+/// the treasury" and "one key spends the treasury in public, slowly".
+///
+/// Kept in its own map rather than as a flag on `PayoutAuthorization`, so that
+/// `payout_authorization` returns confirmed licences only. The anonymizer reads
+/// that view and treats a non-zero amount as permission; an announcement
+/// sharing the map would be permission the moment it was made, which is the
+/// opposite of a timelock.
+#[derive(Serde, Copy, Drop, PartialEq, Debug, starknet::Store, Default)]
+pub struct PayoutAnnouncement {
+    pub proposal_id: u64,
+    pub amount: u128,
+    pub announced_at: u64,
+}
+
 /// The only vote data that ever becomes public, and only after the window
 /// closes.
 #[derive(Serde, Copy, Drop, PartialEq, Debug, starknet::Store, Default)]
@@ -110,6 +130,9 @@ pub trait IProposalRegistry<TContractState> {
         tally: Tally,
         counted_through_block: u64,
         provenance: TallyProvenance,
+        /// Binds the aggregate to a specific set of ballots. Rejected if zero:
+        /// a tally with no commitment is the thing this argument exists to stop.
+        ballot_commitment: felt252,
     );
 
     fn get_proposal(self: @TContractState, proposal_id: u64) -> Proposal;
@@ -127,6 +150,30 @@ pub trait IProposalRegistry<TContractState> {
     /// The block the count was pinned to. Equal to `end_block` for every
     /// finalized proposal, and zero for every proposal that is not — with no
     /// ambiguity, because `create_proposal` guarantees `end_block >= 1`.
+    /// Announce a payout. Starts the timelock; grants nothing.
+    ///
+    /// Reserves the budget immediately, so two announcements cannot both fit
+    /// under a cap that only has room for one. That keeps the existing rule —
+    /// a commitment of budget is a spend whether or not it is ever used —
+    /// rather than inventing a second one for announcements.
+    fn announce_payout(
+        ref self: TContractState, proposal_id: u64, commitment_hash: felt252, amount: u128,
+    );
+
+    /// The announcement for a commitment hash, or a zero-amount default.
+    fn payout_announcement(self: @TContractState, commitment_hash: felt252) -> PayoutAnnouncement;
+
+    /// Blocks that must pass between announcing a payout and licensing it.
+    /// Immutable, set at construction.
+    fn payout_timelock_blocks(self: @TContractState) -> u64;
+
+    /// The block a proposal's ballot set was committed to, or zero.
+    ///
+    /// `finalize` requires this, so a finalized proposal always has one. It is
+    /// what turns "trust the operator's sum" into "re-run the count and compare
+    /// a single felt".
+    fn get_ballot_commitment(self: @TContractState, proposal_id: u64) -> felt252;
+
     /// Commit part of a passed proposal's budget to one specific payout.
     ///
     /// The commitment hash is public from the moment it is registered, so
@@ -137,15 +184,11 @@ pub trait IProposalRegistry<TContractState> {
     /// only once per commitment hash. The cap is enforced here, over the sum of
     /// everything authorised, because this is the only place that knows the
     /// difference between the DAO spending its budget and a stranger spending it.
-    fn authorize_payout(
-        ref self: TContractState, proposal_id: u64, commitment_hash: felt252, amount: u128,
-    );
+    fn authorize_payout(ref self: TContractState, commitment_hash: felt252);
 
     /// The licence for one commitment hash, or a zero-amount default if there
     /// is none.
-    fn payout_authorization(
-        self: @TContractState, commitment_hash: felt252,
-    ) -> PayoutAuthorization;
+    fn payout_authorization(self: @TContractState, commitment_hash: felt252) -> PayoutAuthorization;
 
     /// Total authorised against a proposal so far. Never decreases: an
     /// authorisation is a spend of the budget whether or not it is ever
@@ -196,6 +239,10 @@ pub mod errors {
     pub const ZERO_PAYOUT_AMOUNT: felt252 = 'ZERO_PAYOUT_AMOUNT';
     pub const AUTHORIZATION_EXISTS: felt252 = 'AUTHORIZATION_EXISTS';
     pub const PAYOUT_CAP_EXCEEDED: felt252 = 'PAYOUT_CAP_EXCEEDED';
+    pub const ANNOUNCEMENT_EXISTS: felt252 = 'ANNOUNCEMENT_EXISTS';
+    pub const NOT_ANNOUNCED: felt252 = 'NOT_ANNOUNCED';
+    pub const TIMELOCK_NOT_ELAPSED: felt252 = 'TIMELOCK_NOT_ELAPSED';
+    pub const ZERO_BALLOT_COMMITMENT: felt252 = 'ZERO_BALLOT_COMMITMENT';
 }
 
 #[starknet::contract]
@@ -205,15 +252,13 @@ pub mod ProposalRegistry {
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
-    use starknet::{
-        ContractAddress, get_block_number, get_caller_address, get_contract_address,
-    };
+    use starknet::{ContractAddress, get_block_number, get_caller_address, get_contract_address};
     use crate::ballot::{
         Choice, ballot_address as derive_ballot_address, ballot_domain as compute_ballot_domain,
     };
     use super::{
-        IProposalRegistry, PayoutAuthorization, PayoutTerms, Proposal, Tally, TallyProvenance,
-        errors,
+        IProposalRegistry, PayoutAnnouncement, PayoutAuthorization, PayoutTerms, Proposal, Tally,
+        TallyProvenance, errors,
     };
 
     #[storage]
@@ -245,6 +290,14 @@ pub mod ProposalRegistry {
         /// proposal that the cap is checked against.
         authorizations: Map<felt252, PayoutAuthorization>,
         authorized: Map<u64, u128>,
+        announcements: Map<felt252, PayoutAnnouncement>,
+        /// Immutable. Zero is legal and means no delay, which is what Sepolia
+        /// uses so a rehearsal is not gated on wall-clock time.
+        payout_timelock_blocks: u64,
+        /// Parallel to `tallies`, like `counted_through` and for the same
+        /// reason: `Tally` derives Default, and anything that must be *stated*
+        /// cannot sit behind a default that would supply zero silently.
+        ballot_commitments: Map<u64, felt252>,
     }
 
     #[event]
@@ -254,6 +307,7 @@ pub mod ProposalRegistry {
         ProposalFinalized: ProposalFinalized,
         ProposerAllowed: ProposerAllowed,
         PayoutAuthorized: PayoutAuthorized,
+        PayoutAnnounced: PayoutAnnounced,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -283,6 +337,22 @@ pub mod ProposalRegistry {
         pub provenance: TallyProvenance,
         /// Emitted so the pass rule can be checked from the log alone.
         pub quorum: u128,
+        /// Binds this aggregate to a specific set of ballots.
+        pub ballot_commitment: felt252,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct PayoutAnnounced {
+        #[key]
+        pub proposal_id: u64,
+        #[key]
+        pub commitment_hash: felt252,
+        pub amount: u128,
+        /// Emitted so the delay can be checked from the log alone, without
+        /// trusting a view to report when the clock started.
+        pub announced_at: u64,
+        pub usable_from: u64,
+        pub authorized_after: u128,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -313,6 +383,9 @@ pub mod ProposalRegistry {
         chain_id: felt252,
         epoch: felt252,
         min_quorum: u128,
+        /// Zero is legal: it means no delay. Sepolia uses zero so a rehearsal
+        /// is not gated on wall-clock time; mainnet does not.
+        payout_timelock_blocks: u64,
     ) {
         assert(owner.is_non_zero(), errors::ZERO_ADDRESS);
         assert(tally_operator.is_non_zero(), errors::ZERO_ADDRESS);
@@ -331,6 +404,7 @@ pub mod ProposalRegistry {
         self.chain_id.write(chain_id);
         self.epoch.write(epoch);
         self.min_quorum.write(min_quorum);
+        self.payout_timelock_blocks.write(payout_timelock_blocks);
         // The deployer can propose out of the box; otherwise a fresh registry
         // has no way to create its first proposal.
         self.allowed_proposers.write(owner, true);
@@ -405,6 +479,7 @@ pub mod ProposalRegistry {
             tally: Tally,
             counted_through_block: u64,
             provenance: TallyProvenance,
+            ballot_commitment: felt252,
         ) {
             assert(get_caller_address() == self.tally_operator.read(), errors::NOT_TALLY_OPERATOR);
 
@@ -427,18 +502,27 @@ pub mod ProposalRegistry {
             // `head - 10` cannot produce this value, and the zero a forgetful
             // caller sends is rejected too. Nobody should write "the contract
             // verifies the count".
-            assert(
-                counted_through_block == proposal.end_block, errors::COUNTED_THROUGH_MISMATCH,
-            );
+            assert(counted_through_block == proposal.end_block, errors::COUNTED_THROUGH_MISMATCH);
 
             // Stated, never defaulted. Accepting `Unset` would make "nobody
             // said" indistinguishable from "somebody said the weaker thing".
             assert(provenance != TallyProvenance::Unset, errors::PROVENANCE_UNSET);
 
+            // Binds the aggregate to a specific set of ballots.
+            //
+            // Required, so every finalized proposal has one and a missing
+            // commitment cannot be mistaken for a proposal that predates the
+            // idea. This does not prove the sum is correct either — nothing here
+            // recomputes anything. It narrows "trust the operator's number" to
+            // "re-run the count and compare a single felt", which anyone holding
+            // the viewing keys can do, and which was not possible before.
+            assert(ballot_commitment.is_non_zero(), errors::ZERO_BALLOT_COMMITMENT);
+
             self.proposals.write(proposal_id, Proposal { finalized: true, ..proposal });
             self.tallies.write(proposal_id, tally);
             self.counted_through.write(proposal_id, counted_through_block);
             self.provenances.write(proposal_id, provenance);
+            self.ballot_commitments.write(proposal_id, ballot_commitment);
 
             self
                 .emit(
@@ -451,6 +535,7 @@ pub mod ProposalRegistry {
                             counted_through_block,
                             provenance,
                             quorum: proposal.quorum,
+                            ballot_commitment,
                         },
                     ),
                 );
@@ -468,12 +553,10 @@ pub mod ProposalRegistry {
             self.payout_terms(proposal_id).passed
         }
 
-        fn authorize_payout(
+        fn announce_payout(
             ref self: ContractState, proposal_id: u64, commitment_hash: felt252, amount: u128,
         ) {
-            assert(
-                get_caller_address() == self.tally_operator.read(), errors::NOT_TALLY_OPERATOR,
-            );
+            assert(get_caller_address() == self.tally_operator.read(), errors::NOT_TALLY_OPERATOR);
             assert(commitment_hash.is_non_zero(), errors::ZERO_COMMITMENT_HASH);
             // A zero-amount licence would be indistinguishable from no licence,
             // which is exactly the read the anonymizer relies on.
@@ -482,12 +565,20 @@ pub mod ProposalRegistry {
             let terms = self.payout_terms(proposal_id);
             assert(terms.passed, errors::PROPOSAL_NOT_PASSED);
 
-            // Once per commitment hash. The anonymizer refuses a duplicate
-            // registration too, but the budget is spent here, so the guard that
-            // keeps the accounting exact has to be here as well.
-            let existing = self.authorizations.read(commitment_hash);
-            assert(existing.amount.is_zero(), errors::AUTHORIZATION_EXISTS);
+            // Once per commitment hash, checked against both maps. Re-announcing
+            // an already-licensed commitment would otherwise reserve its budget
+            // a second time.
+            assert(
+                self.announcements.read(commitment_hash).amount.is_zero(),
+                errors::ANNOUNCEMENT_EXISTS,
+            );
+            assert(
+                self.authorizations.read(commitment_hash).amount.is_zero(),
+                errors::AUTHORIZATION_EXISTS,
+            );
 
+            // The cap is reserved here rather than at confirmation, so two
+            // announcements cannot both fit under a cap with room for one.
             // u256, so the sum cannot wrap below the cap it is compared against.
             let authorized_after: u256 = self.authorized.read(proposal_id).into() + amount.into();
             assert(authorized_after <= terms.cap.into(), errors::PAYOUT_CAP_EXCEEDED);
@@ -495,14 +586,61 @@ pub mod ProposalRegistry {
                 .try_into()
                 .expect(errors::PAYOUT_CAP_EXCEEDED);
 
-            self.authorizations.write(commitment_hash, PayoutAuthorization { proposal_id, amount });
+            let announced_at = get_block_number();
+            self
+                .announcements
+                .write(commitment_hash, PayoutAnnouncement { proposal_id, amount, announced_at });
             self.authorized.write(proposal_id, authorized_after);
+
+            self
+                .emit(
+                    Event::PayoutAnnounced(
+                        PayoutAnnounced {
+                            proposal_id,
+                            commitment_hash,
+                            amount,
+                            announced_at,
+                            usable_from: announced_at + self.payout_timelock_blocks.read(),
+                            authorized_after,
+                        },
+                    ),
+                );
+        }
+
+        fn authorize_payout(ref self: ContractState, commitment_hash: felt252) {
+            assert(get_caller_address() == self.tally_operator.read(), errors::NOT_TALLY_OPERATOR);
+
+            let announcement = self.announcements.read(commitment_hash);
+            assert(announcement.amount.is_non_zero(), errors::NOT_ANNOUNCED);
+            assert(
+                self.authorizations.read(commitment_hash).amount.is_zero(),
+                errors::AUTHORIZATION_EXISTS,
+            );
+
+            // The delay itself. Reading the timelock from storage rather than
+            // recomputing a stored deadline keeps one source of truth for a
+            // value that is immutable anyway.
+            let usable_from = announcement.announced_at + self.payout_timelock_blocks.read();
+            assert(get_block_number() >= usable_from, errors::TIMELOCK_NOT_ELAPSED);
+
+            // Budget was reserved at announcement, so nothing moves here.
+            self
+                .authorizations
+                .write(
+                    commitment_hash,
+                    PayoutAuthorization {
+                        proposal_id: announcement.proposal_id, amount: announcement.amount,
+                    },
+                );
 
             self
                 .emit(
                     Event::PayoutAuthorized(
                         PayoutAuthorized {
-                            proposal_id, commitment_hash, amount, authorized_after,
+                            proposal_id: announcement.proposal_id,
+                            commitment_hash,
+                            amount: announcement.amount,
+                            authorized_after: self.authorized.read(announcement.proposal_id),
                         },
                     ),
                 );
@@ -512,6 +650,20 @@ pub mod ProposalRegistry {
             self: @ContractState, commitment_hash: felt252,
         ) -> PayoutAuthorization {
             self.authorizations.read(commitment_hash)
+        }
+
+        fn payout_announcement(
+            self: @ContractState, commitment_hash: felt252,
+        ) -> PayoutAnnouncement {
+            self.announcements.read(commitment_hash)
+        }
+
+        fn payout_timelock_blocks(self: @ContractState) -> u64 {
+            self.payout_timelock_blocks.read()
+        }
+
+        fn get_ballot_commitment(self: @ContractState, proposal_id: u64) -> felt252 {
+            self.ballot_commitments.read(proposal_id)
         }
 
         fn get_authorized(self: @ContractState, proposal_id: u64) -> u128 {
@@ -559,9 +711,7 @@ pub mod ProposalRegistry {
         fn ballot_domain(self: @ContractState) -> felt252 {
             // The registry supplies its own address, so the one input that must
             // be unique per deployment cannot be got wrong in deploy calldata.
-            compute_ballot_domain(
-                self.chain_id.read(), get_contract_address(), self.epoch.read(),
-            )
+            compute_ballot_domain(self.chain_id.read(), get_contract_address(), self.epoch.read())
         }
 
         fn get_chain_id(self: @ContractState) -> felt252 {
@@ -592,9 +742,7 @@ pub mod ProposalRegistry {
             self.allowed_proposers.read(account)
         }
 
-        fn set_allowed_proposer(
-            ref self: ContractState, account: ContractAddress, allowed: bool,
-        ) {
+        fn set_allowed_proposer(ref self: ContractState, account: ContractAddress, allowed: bool) {
             assert(get_caller_address() == self.owner.read(), errors::NOT_OWNER);
             self.allowed_proposers.write(account, allowed);
             self.emit(Event::ProposerAllowed(ProposerAllowed { account, allowed }));

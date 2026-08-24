@@ -14,8 +14,7 @@ use aperture::governance_anonymizer::{
     compute_commitment_hash,
 };
 use aperture::proposal_registry::{
-    TallyProvenance,
-    IProposalRegistryDispatcher, IProposalRegistryDispatcherTrait, Tally,
+    IProposalRegistryDispatcher, IProposalRegistryDispatcherTrait, Tally, TallyProvenance,
 };
 use core::num::traits::Zero;
 use snforge_std::{
@@ -38,6 +37,9 @@ const END: u64 = 200;
 const CHAIN_ID: felt252 = 'SN_SEPOLIA';
 const EPOCH: felt252 = 'APERTURE:V2:TEST';
 const MIN_QUORUM: u128 = 1;
+/// Zero for every test that is not about the timelock, so a confirmation does
+/// not have to wait for blocks it does not care about.
+const TIMELOCK: u64 = 0;
 /// Generous, so cap tests can opt in explicitly rather than tripping by accident.
 const PAYOUT_CAP: u128 = 1_000_000_000;
 /// Zero on Sepolia in production; the tests that care set their own.
@@ -83,6 +85,7 @@ fn deploy_registry_with_passed_proposal() -> ContractAddress {
     CHAIN_ID.serialize(ref calldata);
     EPOCH.serialize(ref calldata);
     MIN_QUORUM.serialize(ref calldata);
+    TIMELOCK.serialize(ref calldata);
     let (address, _) = contract.deploy(@calldata).unwrap();
 
     let d = IProposalRegistryDispatcher { contract_address: address };
@@ -92,7 +95,14 @@ fn deploy_registry_with_passed_proposal() -> ContractAddress {
 
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(1, Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 }, END, TallyProvenance::BallotDerived);
+    d
+        .finalize(
+            1,
+            Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 },
+            END,
+            TallyProvenance::BallotDerived,
+            'ballot set commitment',
+        );
 
     address
 }
@@ -107,6 +117,7 @@ fn deploy_registry_with_failed_proposal() -> ContractAddress {
     CHAIN_ID.serialize(ref calldata);
     EPOCH.serialize(ref calldata);
     MIN_QUORUM.serialize(ref calldata);
+    TIMELOCK.serialize(ref calldata);
     let (address, _) = contract.deploy(@calldata).unwrap();
 
     let d = IProposalRegistryDispatcher { contract_address: address };
@@ -116,7 +127,14 @@ fn deploy_registry_with_failed_proposal() -> ContractAddress {
 
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(1, Tally { for_weight: 100, against_weight: 900, abstain_weight: 0 }, END, TallyProvenance::BallotDerived);
+    d
+        .finalize(
+            1,
+            Tally { for_weight: 100, against_weight: 900, abstain_weight: 0 },
+            END,
+            TallyProvenance::BallotDerived,
+            'ballot set commitment',
+        );
 
     address
 }
@@ -146,9 +164,13 @@ fn authorize(
     d: IGovernanceAnonymizerDispatcher, proposal_id: u64, commitment: felt252, amount: u128,
 ) {
     let registry = d.get_registry();
+    let dispatcher = IProposalRegistryDispatcher { contract_address: registry };
+    // Two calls now: announcing starts the timelock, confirming grants the
+    // licence. TIMELOCK is zero in these tests, so the two can share a block.
     cheat_caller_address(registry, OPERATOR, CheatSpan::TargetCalls(1));
-    IProposalRegistryDispatcher { contract_address: registry }
-        .authorize_payout(proposal_id, commitment, amount);
+    dispatcher.announce_payout(proposal_id, commitment, amount);
+    cheat_caller_address(registry, OPERATOR, CheatSpan::TargetCalls(1));
+    dispatcher.authorize_payout(commitment);
 }
 
 fn register(address: ContractAddress, d: IGovernanceAnonymizerDispatcher) -> felt252 {
@@ -156,9 +178,7 @@ fn register(address: ContractAddress, d: IGovernanceAnonymizerDispatcher) -> fel
     authorize(d, 1, commitment, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     let out = d
-        .privacy_invoke(
-            GovernanceOperation::RegisterPayout, commitment, strk(), AMOUNT, 1, 0, 0,
-        );
+        .privacy_invoke(GovernanceOperation::RegisterPayout, commitment, strk(), AMOUNT, 1, 0, 0);
     assert!(out.len() == 0, "registering must credit nothing");
     commitment
 }
@@ -199,10 +219,16 @@ fn cannot_register_against_a_rejected_proposal() {
 
     let d = IGovernanceAnonymizerDispatcher { contract_address: address };
     start_cheat_caller_address(address, POOL);
-    d.privacy_invoke(
-        GovernanceOperation::RegisterPayout, commitment_for(d, 1, AMOUNT, SECRET), strk(), AMOUNT, 1, 0,
-        0,
-    );
+    d
+        .privacy_invoke(
+            GovernanceOperation::RegisterPayout,
+            commitment_for(d, 1, AMOUNT, SECRET),
+            strk(),
+            AMOUNT,
+            1,
+            0,
+            0,
+        );
     stop_cheat_caller_address(address);
 }
 
@@ -211,10 +237,16 @@ fn cannot_register_against_a_rejected_proposal() {
 fn cannot_register_against_a_proposal_that_does_not_exist() {
     let (address, d) = setup();
     start_cheat_caller_address(address, POOL);
-    d.privacy_invoke(
-        GovernanceOperation::RegisterPayout, commitment_for(d, 999, AMOUNT, SECRET), strk(), AMOUNT, 999,
-        0, 0,
-    );
+    d
+        .privacy_invoke(
+            GovernanceOperation::RegisterPayout,
+            commitment_for(d, 999, AMOUNT, SECRET),
+            strk(),
+            AMOUNT,
+            999,
+            0,
+            0,
+        );
     stop_cheat_caller_address(address);
 }
 
@@ -247,9 +279,7 @@ fn cannot_register_more_than_the_pool_actually_sent() {
     let commitment = commitment_for(d, 1, AMOUNT, SECRET);
     authorize(d, 1, commitment, AMOUNT * 10);
     start_cheat_caller_address(address, POOL);
-    d.privacy_invoke(
-        GovernanceOperation::RegisterPayout, commitment, strk(), AMOUNT * 10, 1, 0, 0,
-    );
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, commitment, strk(), AMOUNT * 10, 1, 0, 0);
     stop_cheat_caller_address(address);
 }
 
@@ -317,10 +347,16 @@ fn the_same_commitment_cannot_be_registered_twice() {
     register(address, d);
 
     start_cheat_caller_address(address, POOL);
-    d.privacy_invoke(
-        GovernanceOperation::RegisterPayout, commitment_for(d, 1, AMOUNT, SECRET), strk(), AMOUNT, 1, 0,
-        0,
-    );
+    d
+        .privacy_invoke(
+            GovernanceOperation::RegisterPayout,
+            commitment_for(d, 1, AMOUNT, SECRET),
+            strk(),
+            AMOUNT,
+            1,
+            0,
+            0,
+        );
     stop_cheat_caller_address(address);
 }
 
@@ -392,9 +428,14 @@ fn claim_round_trips_for_any_secret(secret: felt252) {
         .privacy_invoke(GovernanceOperation::Claim, 0, strk(), AMOUNT, 1, secret, NOTE_ID);
 
     assert!(deposits.len() == 1);
-    assert!(*deposits.at(0) == aperture::governance_anonymizer::OpenNoteDeposit {
-        note_id: NOTE_ID, token: strk(), amount: AMOUNT,
-    });
+    assert!(
+        *deposits
+            .at(
+                0,
+            ) == aperture::governance_anonymizer::OpenNoteDeposit {
+                note_id: NOTE_ID, token: strk(), amount: AMOUNT,
+            },
+    );
 }
 
 #[test]
@@ -404,8 +445,9 @@ fn distinct_secrets_give_distinct_commitments(a: felt252, b: felt252) {
         return;
     }
     assert!(
-        compute_commitment_hash(0x1234, 1, strk(), AMOUNT, a)
-            != compute_commitment_hash(0x1234, 1, strk(), AMOUNT, b),
+        compute_commitment_hash(
+            0x1234, 1, strk(), AMOUNT, a,
+        ) != compute_commitment_hash(0x1234, 1, strk(), AMOUNT, b),
     );
 }
 
@@ -451,32 +493,14 @@ fn two_distinct_commitments_cannot_share_one_balance() {
     let c433 = commitment_for(d, 1, AMOUNT, SECRET);
     authorize(d, 1, c433, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
-    d
-        .privacy_invoke(
-            GovernanceOperation::RegisterPayout,
-            c433,
-            strk(),
-            AMOUNT,
-            1,
-            0,
-            0,
-        );
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, c433, strk(), AMOUNT, 1, 0, 0);
     assert_backed(address, d);
 
     let mut safe = IGovernanceAnonymizerSafeDispatcher { contract_address: address };
     let c448 = commitment_for(d, 1, 1, 'a second preimage');
     authorize(d, 1, c448, 1);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
-    match safe
-        .privacy_invoke(
-            GovernanceOperation::RegisterPayout,
-            c448,
-            strk(),
-            1,
-            1,
-            0,
-            0,
-        ) {
+    match safe.privacy_invoke(GovernanceOperation::RegisterPayout, c448, strk(), 1, 1, 0, 0) {
         Result::Ok(_) => panic!("a second payout was registered against a balance already owed"),
         Result::Err(data) => assert!(*data.at(0) == 'HELPER_UNDERFUNDED'),
     }
@@ -491,16 +515,7 @@ fn a_claim_interleaved_between_two_registrations() {
     let c471 = commitment_for(d, 1, AMOUNT, SECRET);
     authorize(d, 1, c471, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
-    d
-        .privacy_invoke(
-            GovernanceOperation::RegisterPayout,
-            c471,
-            strk(),
-            AMOUNT,
-            1,
-            0,
-            0,
-        );
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, c471, strk(), AMOUNT, 1, 0, 0);
     assert!(d.get_outstanding(strk()) == AMOUNT.into());
     assert_backed(address, d);
 
@@ -518,16 +533,7 @@ fn a_claim_interleaved_between_two_registrations() {
     let c497 = commitment_for(d, 1, 1, 'later preimage');
     authorize(d, 1, c497, 1);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
-    match safe
-        .privacy_invoke(
-            GovernanceOperation::RegisterPayout,
-            c497,
-            strk(),
-            1,
-            1,
-            0,
-            0,
-        ) {
+    match safe.privacy_invoke(GovernanceOperation::RegisterPayout, c497, strk(), 1, 1, 0, 0) {
         Result::Ok(_) => panic!("registered against a balance the pool already pulled"),
         Result::Err(data) => assert!(*data.at(0) == 'HELPER_UNDERFUNDED'),
     }
@@ -539,16 +545,7 @@ fn outstanding_is_tracked_per_token() {
     let c517 = commitment_for(d, 1, AMOUNT, SECRET);
     authorize(d, 1, c517, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
-    d
-        .privacy_invoke(
-            GovernanceOperation::RegisterPayout,
-            c517,
-            strk(),
-            AMOUNT,
-            1,
-            0,
-            0,
-        );
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, c517, strk(), AMOUNT, 1, 0, 0);
 
     assert!(d.get_outstanding(strk()) == AMOUNT.into());
     // A different token shares no ledger with STRK.
@@ -566,16 +563,7 @@ fn get_unattached_reports_value_nobody_can_move() {
     let c543 = commitment_for(d, 1, AMOUNT, SECRET);
     authorize(d, 1, c543, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
-    d
-        .privacy_invoke(
-            GovernanceOperation::RegisterPayout,
-            c543,
-            strk(),
-            AMOUNT,
-            1,
-            0,
-            0,
-        );
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, c543, strk(), AMOUNT, 1, 0, 0);
     assert!(d.get_unattached(strk()) == 0, "fully committed now");
 }
 
@@ -586,8 +574,7 @@ fn zero_token_is_rejected() {
     let mut safe = IGovernanceAnonymizerSafeDispatcher { contract_address: address };
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     let zero: ContractAddress = 0.try_into().unwrap();
-    match safe
-        .privacy_invoke(GovernanceOperation::RegisterPayout, 'c', zero, AMOUNT, 1, 0, 0) {
+    match safe.privacy_invoke(GovernanceOperation::RegisterPayout, 'c', zero, AMOUNT, 1, 0, 0) {
         Result::Ok(_) => panic!("a zero token was accepted"),
         Result::Err(data) => assert!(*data.at(0) == 'ZERO_TOKEN'),
     }
@@ -603,16 +590,7 @@ fn the_commitment_binds_the_amount() {
     let c579 = commitment_for(d, 1, AMOUNT, SECRET);
     authorize(d, 1, c579, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
-    d
-        .privacy_invoke(
-            GovernanceOperation::RegisterPayout,
-            c579,
-            strk(),
-            AMOUNT,
-            1,
-            0,
-            0,
-        );
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, c579, strk(), AMOUNT, 1, 0, 0);
 
     let mut safe = IGovernanceAnonymizerSafeDispatcher { contract_address: address };
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
@@ -629,16 +607,7 @@ fn the_commitment_binds_the_proposal() {
     let c604 = commitment_for(d, 1, AMOUNT, SECRET);
     authorize(d, 1, c604, AMOUNT);
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
-    d
-        .privacy_invoke(
-            GovernanceOperation::RegisterPayout,
-            c604,
-            strk(),
-            AMOUNT,
-            1,
-            0,
-            0,
-        );
+    d.privacy_invoke(GovernanceOperation::RegisterPayout, c604, strk(), AMOUNT, 1, 0, 0);
 
     let mut safe = IGovernanceAnonymizerSafeDispatcher { contract_address: address };
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
@@ -658,9 +627,7 @@ fn the_commitment_binds_the_proposal() {
 /// the preimage. Two balances have been lost that way.
 #[test]
 fn commitment_matches_the_typescript_vector() {
-    let commitment = compute_commitment_hash(
-        0x1234, 1, strk(), 1000, 'a very secret preimage',
-    );
+    let commitment = compute_commitment_hash(0x1234, 1, strk(), 1000, 'a very secret preimage');
     assert!(
         commitment == 0xe9ed710c9e38c75880ecd742a47a3dc1e7ae641537aeb4aa00eeb361176e1c,
         "the commitment must match the TypeScript implementation",
@@ -742,7 +709,9 @@ fn a_lying_registration_cannot_strand_an_honest_payout() {
     let mut safe = IGovernanceAnonymizerSafeDispatcher { contract_address: address };
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     match safe
-        .privacy_invoke(GovernanceOperation::Claim, 0, strk(), AMOUNT, 1, 'another preimage', NOTE_ID) {
+        .privacy_invoke(
+            GovernanceOperation::Claim, 0, strk(), AMOUNT, 1, 'another preimage', NOTE_ID,
+        ) {
         Result::Ok(_) => panic!("a commitment that lied about its amount was honoured"),
         Result::Err(data) => assert!(*data.at(0) == 'TERMS_MISMATCH'),
     }
@@ -756,10 +725,16 @@ fn a_lying_registration_cannot_strand_an_honest_payout() {
         "the ledger must reflect only what was actually escrowed",
     );
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
-    let deposits = d.privacy_invoke(GovernanceOperation::Claim, 0, strk(), AMOUNT, 1, SECRET, NOTE_ID);
-    assert!(*deposits.at(0) == aperture::governance_anonymizer::OpenNoteDeposit {
-        note_id: NOTE_ID, token: strk(), amount: AMOUNT,
-    });
+    let deposits = d
+        .privacy_invoke(GovernanceOperation::Claim, 0, strk(), AMOUNT, 1, SECRET, NOTE_ID);
+    assert!(
+        *deposits
+            .at(
+                0,
+            ) == aperture::governance_anonymizer::OpenNoteDeposit {
+                note_id: NOTE_ID, token: strk(), amount: AMOUNT,
+            },
+    );
     // Only the attacker's own wei remains owed.
     assert!(d.get_outstanding(strk()) == 1);
 }
@@ -831,9 +806,14 @@ fn a_rejected_registration_burns_none_of_the_budget() {
     cheat_caller_address(address, POOL, CheatSpan::TargetCalls(1));
     let deposits = d
         .privacy_invoke(GovernanceOperation::Claim, 0, strk(), AMOUNT, 1, SECRET, NOTE_ID);
-    assert!(*deposits.at(0) == aperture::governance_anonymizer::OpenNoteDeposit {
-        note_id: NOTE_ID, token: strk(), amount: AMOUNT,
-    });
+    assert!(
+        *deposits
+            .at(
+                0,
+            ) == aperture::governance_anonymizer::OpenNoteDeposit {
+                note_id: NOTE_ID, token: strk(), amount: AMOUNT,
+            },
+    );
     assert!(d.get_payout(commitment).claimed);
 }
 

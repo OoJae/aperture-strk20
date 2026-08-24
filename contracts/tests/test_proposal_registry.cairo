@@ -6,9 +6,8 @@
 
 use aperture::ballot::Choice;
 use aperture::proposal_registry::{
-    TallyProvenance,
-    IProposalRegistryDispatcher, IProposalRegistryDispatcherTrait,
-    IProposalRegistrySafeDispatcher, IProposalRegistrySafeDispatcherTrait, Tally,
+    IProposalRegistryDispatcher, IProposalRegistryDispatcherTrait, IProposalRegistrySafeDispatcher,
+    IProposalRegistrySafeDispatcherTrait, Tally, TallyProvenance,
 };
 use snforge_std::{
     CheatSpan, ContractClassTrait, DeclareResultTrait, cheat_caller_address, declare,
@@ -31,10 +30,17 @@ const EPOCH: felt252 = 'APERTURE:V2:TEST';
 /// existing tally fixtures are raw units, and a realistic 5e18 floor would make
 /// every one of them fail quorum for reasons unrelated to what they test.
 const MIN_QUORUM: u128 = 1;
+/// Zero for every test that is not about the timelock, so a confirmation does
+/// not have to wait for blocks it does not care about.
+const TIMELOCK: u64 = 0;
 const PAYOUT_TOKEN: ContractAddress = 0x0777.try_into().unwrap();
 const PAYOUT_CAP: u128 = 1_000_000;
 
 fn deploy() -> (ContractAddress, IProposalRegistryDispatcher) {
+    deploy_with_timelock(TIMELOCK)
+}
+
+fn deploy_with_timelock(timelock: u64) -> (ContractAddress, IProposalRegistryDispatcher) {
     let contract = declare("ProposalRegistry").unwrap().contract_class();
     // Built with Serde rather than by hand: a hand-rolled array silently breaks
     // for any multi-felt type.
@@ -46,6 +52,7 @@ fn deploy() -> (ContractAddress, IProposalRegistryDispatcher) {
     CHAIN_ID.serialize(ref calldata);
     EPOCH.serialize(ref calldata);
     MIN_QUORUM.serialize(ref calldata);
+    timelock.serialize(ref calldata);
 
     let (address, _) = contract.deploy(@calldata).unwrap();
     (address, IProposalRegistryDispatcher { contract_address: address })
@@ -106,7 +113,8 @@ fn owner_can_allow_another_proposer() {
 
     cheat_caller_address(address, STRANGER, CheatSpan::TargetCalls(1));
     start_cheat_block_number_global(START - 1);
-    let id = d.create_proposal('ipfs://from-stranger', START, END, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP);
+    let id = d
+        .create_proposal('ipfs://from-stranger', START, END, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP);
     assert!(id == 1);
 }
 
@@ -127,7 +135,7 @@ fn operator_can_finalize_after_the_window() {
     start_cheat_block_number_global(END + 1);
     let tally = Tally { for_weight: 900, against_weight: 100, abstain_weight: 5 };
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, tally, END, TallyProvenance::BallotDerived);
+    d.finalize(id, tally, END, TallyProvenance::BallotDerived, 'ballot set commitment');
 
     assert!(d.get_proposal(id).finalized, "should be finalized");
     assert!(d.get_tally(id) == tally, "tally should round-trip");
@@ -141,7 +149,14 @@ fn a_losing_proposal_does_not_pass() {
 
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, Tally { for_weight: 100, against_weight: 900, abstain_weight: 0 }, END, TallyProvenance::BallotDerived);
+    d
+        .finalize(
+            id,
+            Tally { for_weight: 100, against_weight: 900, abstain_weight: 0 },
+            END,
+            TallyProvenance::BallotDerived,
+            'ballot set commitment',
+        );
 
     assert!(!d.has_passed(id), "fewer for than against must not pass");
 }
@@ -154,7 +169,14 @@ fn a_tie_does_not_pass() {
 
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, Tally { for_weight: 500, against_weight: 500, abstain_weight: 0 }, END, TallyProvenance::BallotDerived);
+    d
+        .finalize(
+            id,
+            Tally { for_weight: 500, against_weight: 500, abstain_weight: 0 },
+            END,
+            TallyProvenance::BallotDerived,
+            'ballot set commitment',
+        );
 
     assert!(!d.has_passed(id), "a tie must not pass");
 }
@@ -174,7 +196,10 @@ fn stranger_cannot_finalize() {
 
     start_cheat_block_number_global(END + 1);
     start_cheat_caller_address(address, STRANGER);
-    d.finalize(id, Default::default(), END, TallyProvenance::BallotDerived);
+    d
+        .finalize(
+            id, Default::default(), END, TallyProvenance::BallotDerived, 'ballot set commitment',
+        );
     stop_cheat_caller_address(address);
 }
 
@@ -188,7 +213,10 @@ fn owner_cannot_finalize() {
 
     start_cheat_block_number_global(END + 1);
     start_cheat_caller_address(address, OWNER);
-    d.finalize(id, Default::default(), END, TallyProvenance::BallotDerived);
+    d
+        .finalize(
+            id, Default::default(), END, TallyProvenance::BallotDerived, 'ballot set commitment',
+        );
     stop_cheat_caller_address(address);
 }
 
@@ -200,7 +228,10 @@ fn cannot_finalize_before_the_window_closes() {
 
     start_cheat_block_number_global(END - 1);
     start_cheat_caller_address(address, OPERATOR);
-    d.finalize(id, Default::default(), END, TallyProvenance::BallotDerived);
+    d
+        .finalize(
+            id, Default::default(), END, TallyProvenance::BallotDerived, 'ballot set commitment',
+        );
     stop_cheat_caller_address(address);
 }
 
@@ -210,7 +241,10 @@ fn cannot_finalize_a_proposal_that_does_not_exist() {
     let (address, d) = deploy();
     start_cheat_block_number_global(END + 1);
     start_cheat_caller_address(address, OPERATOR);
-    d.finalize(999, Default::default(), END, TallyProvenance::BallotDerived);
+    d
+        .finalize(
+            999, Default::default(), END, TallyProvenance::BallotDerived, 'ballot set commitment',
+        );
     stop_cheat_caller_address(address);
 }
 
@@ -226,13 +260,26 @@ fn cannot_finalize_twice() {
     start_cheat_block_number_global(END + 1);
     start_cheat_caller_address(address, OPERATOR);
 
-    safe.finalize(id, Tally { for_weight: 10, against_weight: 1, abstain_weight: 0 }, END, TallyProvenance::BallotDerived).unwrap();
+    safe
+        .finalize(
+            id,
+            Tally { for_weight: 10, against_weight: 1, abstain_weight: 0 },
+            END,
+            TallyProvenance::BallotDerived,
+            'ballot set commitment',
+        )
+        .unwrap();
 
-    match safe.finalize(id, Tally { for_weight: 1, against_weight: 10, abstain_weight: 0 }, END, TallyProvenance::BallotDerived) {
+    match safe
+        .finalize(
+            id,
+            Tally { for_weight: 1, against_weight: 10, abstain_weight: 0 },
+            END,
+            TallyProvenance::BallotDerived,
+            'ballot set commitment',
+        ) {
         Result::Ok(_) => panic!("a second finalize should have reverted"),
-        Result::Err(panic_data) => {
-            assert!(*panic_data.at(0) == 'ALREADY_FINALIZED');
-        },
+        Result::Err(panic_data) => { assert!(*panic_data.at(0) == 'ALREADY_FINALIZED'); },
     }
     stop_cheat_caller_address(address);
 
@@ -290,7 +337,7 @@ fn counted_through_at_the_end_block_succeeds() {
     let (address, d) = deploy();
     let id = finalizable(address, d);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, passing(), END, TallyProvenance::BallotDerived);
+    d.finalize(id, passing(), END, TallyProvenance::BallotDerived, 'ballot set commitment');
 
     assert!(d.get_counted_through(id) == END, "the pin must round-trip");
     assert!(d.get_provenance(id) == TallyProvenance::BallotDerived);
@@ -303,7 +350,7 @@ fn counted_through_one_block_early_reverts() {
     let (address, d) = deploy();
     let id = finalizable(address, d);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, passing(), END - 1, TallyProvenance::BallotDerived);
+    d.finalize(id, passing(), END - 1, TallyProvenance::BallotDerived, 'ballot set commitment');
 }
 
 #[test]
@@ -315,7 +362,7 @@ fn counted_through_one_block_late_reverts() {
     let id = finalizable(address, d);
     start_cheat_block_number_global(END + 2);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, passing(), END + 1, TallyProvenance::BallotDerived);
+    d.finalize(id, passing(), END + 1, TallyProvenance::BallotDerived, 'ballot set commitment');
 }
 
 #[test]
@@ -325,7 +372,7 @@ fn counted_through_zero_reverts() {
     let (address, d) = deploy();
     let id = finalizable(address, d);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, passing(), 0, TallyProvenance::BallotDerived);
+    d.finalize(id, passing(), 0, TallyProvenance::BallotDerived, 'ballot set commitment');
 }
 
 #[test]
@@ -335,7 +382,7 @@ fn provenance_is_required_even_with_a_correct_pin() {
     let (address, d) = deploy();
     let id = finalizable(address, d);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, passing(), END, TallyProvenance::Unset);
+    d.finalize(id, passing(), END, TallyProvenance::Unset, 'ballot set commitment');
 }
 
 #[test]
@@ -355,7 +402,7 @@ fn an_operator_asserted_tally_is_pinned_the_same_way() {
     let (address, d) = deploy();
     let id = finalizable(address, d);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, passing(), END, TallyProvenance::OperatorAsserted);
+    d.finalize(id, passing(), END, TallyProvenance::OperatorAsserted, 'ballot set commitment');
 
     assert!(d.get_provenance(id) == TallyProvenance::OperatorAsserted);
     assert!(d.has_passed(id), "provenance does not change the pass rule");
@@ -373,12 +420,14 @@ fn turnout_below_quorum_does_not_pass() {
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
     // Overwhelmingly for, and still short of the bar.
-    d.finalize(
-        id,
-        Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 },
-        END,
-        TallyProvenance::BallotDerived,
-    );
+    d
+        .finalize(
+            id,
+            Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 },
+            END,
+            TallyProvenance::BallotDerived,
+            'ballot set commitment',
+        );
     assert!(!d.has_passed(id), "1000 turnout must not clear a 5000 quorum");
 }
 
@@ -391,7 +440,7 @@ fn turnout_exactly_at_quorum_passes() {
 
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, passing(), END, TallyProvenance::BallotDerived);
+    d.finalize(id, passing(), END, TallyProvenance::BallotDerived, 'ballot set commitment');
     assert!(d.has_passed(id), "turnout at the boundary must clear it");
 }
 
@@ -406,7 +455,7 @@ fn abstain_counts_toward_turnout() {
 
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, passing(), END, TallyProvenance::BallotDerived);
+    d.finalize(id, passing(), END, TallyProvenance::BallotDerived, 'ballot set commitment');
     // 900 + 100 = 1000, short. The 5 abstain is what clears it.
     assert!(d.has_passed(id));
 }
@@ -429,12 +478,14 @@ fn three_maximal_weights_do_not_panic() {
     let id = finalizable(address, d);
     let max: u128 = 0xffffffffffffffffffffffffffffffff;
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(
-        id,
-        Tally { for_weight: max, against_weight: max, abstain_weight: max },
-        END,
-        TallyProvenance::BallotDerived,
-    );
+    d
+        .finalize(
+            id,
+            Tally { for_weight: max, against_weight: max, abstain_weight: max },
+            END,
+            TallyProvenance::BallotDerived,
+            'ballot set commitment',
+        );
     assert!(!d.has_passed(id), "for == against is not a pass");
 }
 
@@ -452,7 +503,14 @@ fn pass_a_proposal(address: ContractAddress, d: IProposalRegistryDispatcher) -> 
     let id = create_default_proposal(address, d);
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(id, Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 }, END, TallyProvenance::BallotDerived);
+    d
+        .finalize(
+            id,
+            Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 },
+            END,
+            TallyProvenance::BallotDerived,
+            'ballot set commitment',
+        );
     id
 }
 
@@ -462,7 +520,9 @@ fn the_operator_can_commit_budget_to_a_payout() {
     let id = pass_a_proposal(address, d);
 
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.authorize_payout(id, 'commitment', 500);
+    d.announce_payout(id, 'commitment', 500);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
 
     let auth = d.payout_authorization('commitment');
     assert!(auth.proposal_id == id && auth.amount == 500, "licence should round-trip");
@@ -477,7 +537,9 @@ fn a_stranger_cannot_commit_the_daos_budget() {
     let (address, d) = deploy();
     let id = pass_a_proposal(address, d);
     cheat_caller_address(address, STRANGER, CheatSpan::TargetCalls(1));
-    d.authorize_payout(id, 'commitment', 500);
+    d.announce_payout(id, 'commitment', 500);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
 }
 
 #[test]
@@ -488,7 +550,9 @@ fn even_the_owner_cannot_commit_the_daos_budget() {
     let (address, d) = deploy();
     let id = pass_a_proposal(address, d);
     cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
-    d.authorize_payout(id, 'commitment', 500);
+    d.announce_payout(id, 'commitment', 500);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
 }
 
 #[test]
@@ -497,20 +561,91 @@ fn budget_cannot_be_committed_before_the_vote_passes() {
     let (address, d) = deploy();
     let id = create_default_proposal(address, d);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.authorize_payout(id, 'commitment', 500);
+    d.announce_payout(id, 'commitment', 500);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
+}
+
+#[test]
+#[should_panic(expected: 'ANNOUNCEMENT_EXISTS')]
+fn one_commitment_cannot_be_announced_twice() {
+    // Otherwise the same hash could be re-announced indefinitely and the running
+    // total would reserve its budget every time while the anonymizer honoured it
+    // once. The budget is reserved at announcement, so this is where the guard
+    // has to be.
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.announce_payout(id, 'commitment', 500);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.announce_payout(id, 'commitment', 500);
 }
 
 #[test]
 #[should_panic(expected: 'AUTHORIZATION_EXISTS')]
 fn one_commitment_cannot_be_licensed_twice() {
-    // Otherwise the same hash could be relicensed indefinitely and the running
-    // total would count it every time while the anonymizer honoured it once.
     let (address, d) = deploy();
     let id = pass_a_proposal(address, d);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.authorize_payout(id, 'commitment', 500);
+    d.announce_payout(id, 'commitment', 500);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.authorize_payout(id, 'commitment', 500);
+    d.authorize_payout('commitment');
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
+}
+
+#[test]
+#[should_panic(expected: 'NOT_ANNOUNCED')]
+fn a_payout_cannot_be_licensed_without_being_announced() {
+    // The timelock is only a delay if there is no way round it. Confirming a
+    // commitment nobody announced would be exactly that.
+    let (address, d) = deploy();
+    let _ = pass_a_proposal(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('never announced');
+}
+
+#[test]
+#[should_panic(expected: 'NOT_TALLY_OPERATOR')]
+fn a_stranger_cannot_announce_a_payout() {
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    cheat_caller_address(address, STRANGER, CheatSpan::TargetCalls(1));
+    d.announce_payout(id, 'commitment', 500);
+}
+
+#[test]
+#[should_panic(expected: 'NOT_TALLY_OPERATOR')]
+fn a_stranger_cannot_confirm_someone_elses_announcement() {
+    // Announcing in public must not mean anyone can act on it.
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.announce_payout(id, 'commitment', 500);
+    cheat_caller_address(address, STRANGER, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
+}
+
+#[test]
+fn an_announcement_grants_nothing_until_it_is_confirmed() {
+    // The property the anonymizer depends on: it reads payout_authorization and
+    // treats a non-zero amount as permission. An announcement sharing that view
+    // would be permission the moment it was made.
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.announce_payout(id, 'commitment', 500);
+
+    assert!(d.payout_authorization('commitment').amount == 0, "announcing must grant nothing");
+    assert!(d.payout_announcement('commitment').amount == 500, "but it must be recorded");
+    // Budget is reserved at announcement, so the cap cannot be double-spent by
+    // announcing twice and confirming both.
+    assert!(d.get_authorized(id) == 500, "announcing reserves the budget");
+
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
+    assert!(d.payout_authorization('commitment').amount == 500, "confirming grants it");
+    assert!(d.get_authorized(id) == 500, "confirming must not reserve it a second time");
 }
 
 #[test]
@@ -521,9 +656,13 @@ fn the_cap_bounds_the_sum_of_every_licence() {
     let (address, d) = deploy();
     let id = pass_a_proposal(address, d);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.authorize_payout(id, 'first', PAYOUT_CAP);
+    d.announce_payout(id, 'first', PAYOUT_CAP);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.authorize_payout(id, 'second', 1);
+    d.authorize_payout('first');
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.announce_payout(id, 'second', 1);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('second');
 }
 
 #[test]
@@ -532,7 +671,9 @@ fn a_licence_for_nothing_is_rejected() {
     let (address, d) = deploy();
     let id = pass_a_proposal(address, d);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.authorize_payout(id, 'commitment', 0);
+    d.announce_payout(id, 'commitment', 0);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
 }
 
 #[test]
@@ -541,7 +682,9 @@ fn a_licence_naming_no_commitment_is_rejected() {
     let (address, d) = deploy();
     let id = pass_a_proposal(address, d);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.authorize_payout(id, 0, 500);
+    d.announce_payout(id, 0, 500);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout(0);
 }
 
 #[test]
@@ -552,17 +695,111 @@ fn each_proposal_carries_its_own_budget() {
     // A second proposal, passed on its own window.
     start_cheat_block_number_global(START - 1);
     cheat_caller_address(address, OWNER, CheatSpan::TargetCalls(1));
-    let second = d.create_proposal('ipfs://proposal-2', START, END, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP);
+    let second = d
+        .create_proposal('ipfs://proposal-2', START, END, MIN_QUORUM, PAYOUT_TOKEN, PAYOUT_CAP);
     start_cheat_block_number_global(END + 1);
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.finalize(second, Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 }, END, TallyProvenance::BallotDerived);
+    d
+        .finalize(
+            second,
+            Tally { for_weight: 900, against_weight: 100, abstain_weight: 0 },
+            END,
+            TallyProvenance::BallotDerived,
+            'ballot set commitment',
+        );
 
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.authorize_payout(first, 'a', PAYOUT_CAP);
+    d.announce_payout(first, 'a', PAYOUT_CAP);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('a');
     // The first proposal's budget is fully committed; the second's is untouched.
     cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
-    d.authorize_payout(second, 'b', PAYOUT_CAP);
+    d.announce_payout(second, 'b', PAYOUT_CAP);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('b');
 
     assert!(d.get_authorized(first) == PAYOUT_CAP);
     assert!(d.get_authorized(second) == PAYOUT_CAP);
+}
+
+
+// --- the timelock ---------------------------------------------------------
+//
+// The operator is the only address that can license a payout, and it chooses
+// the commitment, so it chooses the recipient. The cap bounds how much; nothing
+// bounded how suddenly. These are the tests for the delay.
+
+#[test]
+#[should_panic(expected: 'TIMELOCK_NOT_ELAPSED')]
+fn a_payout_cannot_be_licensed_one_block_early() {
+    let (address, d) = deploy_with_timelock(50);
+    let id = pass_a_proposal(address, d);
+
+    start_cheat_block_number_global(END + 1);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.announce_payout(id, 'commitment', 500);
+
+    // One block short of announced_at + 50.
+    start_cheat_block_number_global(END + 50);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
+}
+
+#[test]
+fn a_payout_can_be_licensed_the_moment_the_delay_elapses() {
+    // The boundary, from the other side: exactly announced_at + timelock is
+    // enough. An off-by-one here would make the lock one block longer than the
+    // constant says, which is the kind of thing nobody notices until it matters.
+    let (address, d) = deploy_with_timelock(50);
+    let id = pass_a_proposal(address, d);
+
+    start_cheat_block_number_global(END + 1);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.announce_payout(id, 'commitment', 500);
+    assert!(d.payout_announcement('commitment').announced_at == END + 1);
+
+    start_cheat_block_number_global(END + 51);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
+    assert!(d.payout_authorization('commitment').amount == 500);
+}
+
+#[test]
+fn a_zero_timelock_is_legal_and_means_no_delay() {
+    // Sepolia deploys with zero so a rehearsal is not gated on wall-clock time.
+    // Legal, and it should behave as no delay rather than as an error.
+    let (address, d) = deploy_with_timelock(0);
+    let id = pass_a_proposal(address, d);
+    assert!(d.payout_timelock_blocks() == 0);
+
+    start_cheat_block_number_global(END + 1);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.announce_payout(id, 'commitment', 500);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.authorize_payout('commitment');
+    assert!(d.payout_authorization('commitment').amount == 500);
+}
+
+// --- the ballot-set commitment --------------------------------------------
+
+#[test]
+#[should_panic(expected: 'ZERO_BALLOT_COMMITMENT')]
+fn a_tally_cannot_be_published_without_committing_to_its_ballots() {
+    // Required rather than optional, so a missing commitment cannot be mistaken
+    // for a proposal that predates the idea.
+    let (address, d) = deploy();
+    let id = create_default_proposal(address, d);
+    start_cheat_block_number_global(END + 1);
+    cheat_caller_address(address, OPERATOR, CheatSpan::TargetCalls(1));
+    d.finalize(id, passing(), END, TallyProvenance::BallotDerived, 0);
+}
+
+#[test]
+fn the_ballot_commitment_is_published_with_the_tally() {
+    let (address, d) = deploy();
+    let id = pass_a_proposal(address, d);
+    assert!(d.get_ballot_commitment(id) == 'ballot set commitment');
+    // Zero for a proposal that was never finalized, which is unambiguous
+    // because finalize rejects zero.
+    assert!(d.get_ballot_commitment(999) == 0);
 }

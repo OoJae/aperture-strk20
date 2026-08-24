@@ -96,6 +96,10 @@ export async function finalizeProposal(
         ? PROVENANCE.ballotDerived
         : PROVENANCE.operatorAsserted,
     ),
+    // The seventh felt. Computed from the same deduped set this run summed, so
+    // the published aggregate and the published commitment cannot describe
+    // different ballots.
+    run.ballotCommitment,
   ]);
 
   const { transaction_hash } = await account.execute({

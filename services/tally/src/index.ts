@@ -156,6 +156,10 @@ async function main(argv: string[]): Promise<number> {
       abstain: tally.abstainWeight.toString(),
     },
     provenance,
+    // Published so a third party can compare a single felt instead of three
+    // numbers, and so a disagreement points at a set of ballots rather than a
+    // total.
+    ballotCommitment: run.ballotCommitment,
     ballots: Object.fromEntries(
       run.perIdentity.map(({ identity, noteCount }) => [identity.choice, noteCount]),
     ),
