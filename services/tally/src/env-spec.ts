@@ -182,8 +182,14 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     requirement: "always",
     secret: false,
     group: "Ballot identity derivation",
-    description: "Public half of the DAO master key. Ballot addresses derive from it.",
-    example: "0x660a41ee3edd08bd84276775ea1bed419f38ed8fe7bf4c07b522c3513a73e42",
+    description:
+      "Public half of the DAO master key. Ballot addresses derive from it, so " +
+      "it must be the public half of YOUR DAO_BALLOT_ACCOUNT_PRIVATE_KEY — the " +
+      "loader checks that it is. Deliberately has no example value: this used " +
+      "to ship Aperture's own v1 key as a default, which meant a fresh clone " +
+      "derived, published and funded ballot addresses it could never sign for. " +
+      "A stale default for this variable is worse than a missing one, because " +
+      "a missing one stops you and a stale one does not.",
   },
 
   {
