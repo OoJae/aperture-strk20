@@ -44,6 +44,7 @@ interface Params {
   ballotAccountClassHash: string;
   minQuorum: string;
   assertedPayoutCap: string;
+  payoutTimelockBlocks: string;
   pool: string;
   account: string;
 }
@@ -200,7 +201,11 @@ async function main(): Promise<number> {
   console.log(`  operator  ${params.tallyOperator}`);
   console.log(`  epoch     ${params.epoch}`);
   console.log(`  quorum    ${BigInt(params.minQuorum) / 10n ** 18n} STRK floor`);
-  console.log(`  asserted  ${BigInt(params.assertedPayoutCap) / 10n ** 18n} STRK cap\n`);
+  console.log(`  asserted  ${BigInt(params.assertedPayoutCap) / 10n ** 18n} STRK cap`);
+  console.log(
+    `  timelock  ${params.payoutTimelockBlocks} blocks between announcing a ` +
+      `payout and being able to use it\n`,
+  );
 
   // 1 — build
   console.log("1. Building");
@@ -251,6 +256,7 @@ async function main(): Promise<number> {
         short(params.chainId),
         short(params.epoch),
         felt(params.minQuorum),
+        felt(params.payoutTimelockBlocks),
       ],
       rpc,
       params.account,

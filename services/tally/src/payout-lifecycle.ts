@@ -333,33 +333,76 @@ async function main(argv: string[]): Promise<number> {
   //    An ordinary public call — the operator's own account, gas only, no pool
   //    fee — and idempotent, so a rerun after a crash does not spend the budget
   //    twice.
-  console.log("0. Committing the budget on the registry (public, gas only)");
-  const existingLicence = await provider.callContract({
-    contractAddress: config.registryAddress,
-    entrypoint: "payout_authorization",
-    calldata: [commitment],
-  });
-  const licenceFelts = (
-    Array.isArray(existingLicence)
-      ? existingLicence
-      : (existingLicence as { result: string[] }).result
-  ) as string[];
-  if (BigInt(licenceFelts[1] ?? "0x0") !== 0n) {
-    console.log(`   already licensed for ${licenceFelts[1]}; not spending it again\n`);
-  } else {
-    const licenceTx = await registryAccount.execute({
+  // 0. Announce, wait out the timelock, then confirm.
+  //
+  //    Two calls with a delay between them, because the operator is the only
+  //    address that can license a payout and it chooses the commitment, so it
+  //    chooses the recipient. The cap bounds how much; the timelock bounds how
+  //    suddenly, and gives anyone watching the registry a window to react.
+  //
+  //    Both are ordinary public calls by the tally operator — gas only, no pool
+  //    fee — and both are idempotent, so a rerun after a crash neither
+  //    re-reserves the budget nor waits the delay twice.
+  const registryCall = async (entrypoint: string, calldata: string[]): Promise<string[]> => {
+    const r = await provider.callContract({
       contractAddress: config.registryAddress,
-      entrypoint: "authorize_payout",
-      calldata: [num.toHex(proposalId), commitment, num.toHex(amount)],
+      entrypoint,
+      calldata,
     });
-    const licenceReceipt = await provider.waitForTransaction(licenceTx.transaction_hash);
-    if ((licenceReceipt as { execution_status?: string }).execution_status === "REVERTED") {
+    return (Array.isArray(r) ? r : (r as { result: string[] }).result) as string[];
+  };
+  const submitRegistry = async (entrypoint: string, calldata: string[]): Promise<string> => {
+    const tx = await registryAccount.execute({
+      contractAddress: config.registryAddress,
+      entrypoint,
+      calldata,
+    });
+    const receipt = await provider.waitForTransaction(tx.transaction_hash);
+    if ((receipt as { execution_status?: string }).execution_status === "REVERTED") {
       throw new Error(
-        `authorize_payout REVERTED: ` +
-          `${(licenceReceipt as { revert_reason?: string }).revert_reason ?? "(no reason)"}`,
+        `${entrypoint} REVERTED: ` +
+          `${(receipt as { revert_reason?: string }).revert_reason ?? "(no reason)"}`,
       );
     }
-    console.log(`   ${licenceTx.transaction_hash}\n`);
+    return tx.transaction_hash;
+  };
+
+  const timelock = Number(BigInt((await registryCall("payout_timelock_blocks", []))[0] ?? "0x0"));
+
+  console.log("0a. Announcing the payout (public, gas only)");
+  const announcement = await registryCall("payout_announcement", [commitment]);
+  let announcedAt = Number(BigInt(announcement[2] ?? "0x0"));
+  if (BigInt(announcement[1] ?? "0x0") !== 0n) {
+    console.log(`    already announced at block ${announcedAt}; not reserving it again`);
+  } else {
+    const tx = await submitRegistry("announce_payout", [
+      num.toHex(proposalId),
+      commitment,
+      num.toHex(amount),
+    ]);
+    console.log(`    ${tx}`);
+    announcedAt = Number(
+      BigInt((await registryCall("payout_announcement", [commitment]))[2] ?? "0x0"),
+    );
+  }
+  const usableFrom = announcedAt + timelock;
+  console.log(`    usable from block ${usableFrom} (timelock ${timelock} blocks)\n`);
+
+  console.log("0b. Confirming it once the timelock has elapsed");
+  const existingLicence = await registryCall("payout_authorization", [commitment]);
+  if (BigInt(existingLicence[1] ?? "0x0") !== 0n) {
+    console.log(`    already licensed for ${existingLicence[1]}; not spending it again\n`);
+  } else {
+    for (;;) {
+      const head = await provider.getBlockNumber();
+      if (head >= usableFrom) break;
+      console.log(
+        `    waiting: block ${head}, usable from ${usableFrom} (${usableFrom - head} to go)…`,
+      );
+      await new Promise((r) => setTimeout(r, 30_000));
+    }
+    const tx = await submitRegistry("authorize_payout", [commitment]);
+    console.log(`    ${tx}\n`);
   }
 
   // 1. Register — the pool withdraws to the helper, which parks the value

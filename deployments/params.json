@@ -30,6 +30,9 @@
     "assertedPayoutCap": "0",
     "_assertedCap": "Zero: Sepolia has a working indexer, so a ballot-derived tally is reachable and an asserted one should fund nothing.",
 
+    "payoutTimelockBlocks": "0",
+    "_timelock": "Zero on Sepolia. The delay is real on mainnet; gating a rehearsal on wall-clock time would only make the rehearsal slower, and the boundary is covered by contract tests from both sides.",
+
     "pool": "0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91",
     "account": "aperture-sepolia"
   },
@@ -44,6 +47,9 @@
     "ballotAccountClassHash": "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
 
     "minQuorum": "5000000000000000000",
+
+    "payoutTimelockBlocks": "1800",
+    "_timelock": "1800 blocks, about an hour at mainnet's measured 1.7s. Long enough that a payout cannot be announced and used before anyone watching the registry could react, short enough that a legitimate one is not painful. Immutable, so this is the only chance to choose it.",
 
     "assertedPayoutCap": "20000000000000000000",
     "_assertedCap": "20 STRK. Mainnet has no proven proving path for a real tally yet, so an asserted one must be able to authorise the demo payouts — but bounded by a number published before any proposal existed.",
