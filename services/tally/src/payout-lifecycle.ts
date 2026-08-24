@@ -51,7 +51,7 @@ async function main(argv: string[]): Promise<number> {
 
   // Disclosed to the indexer in cleartext, so it is its own key rather than the
   // seed every ballot viewing key derives from.
-  const operatorViewingKey = config.operatorViewingKey;
+  const operatorViewingKey = config.poolActorViewingKey;
   if (operatorViewingKey === undefined) {
     console.error(
       "TALLY_OPERATOR_VIEWING_KEY is not set. See .env.example — it must be a " +
@@ -126,7 +126,21 @@ async function main(argv: string[]): Promise<number> {
   console.log(`  anonymizer: ${anonymizer}`);
   console.log(`  commitment: ${commitment}\n`);
 
+  // Two accounts, because they are two roles.
+  //
+  // The licence is a registry call, and the registry names its tally operator
+  // at construction and can never be told a different one. The two pool legs
+  // are pool work, and the pool binds an account to a viewing key write-once —
+  // our mainnet operator's is lost, so it cannot touch the pool at all. On
+  // Sepolia both resolve to the same account and this distinction costs
+  // nothing.
   const account = new Account({
+    provider,
+    address: config.poolActorAddress,
+    signer: config.poolActorPrivateKey,
+    cairoVersion: "1",
+  });
+  const registryAccount = new Account({
     provider,
     address: config.operatorAddress,
     signer: config.operatorPrivateKey,
@@ -211,7 +225,7 @@ async function main(argv: string[]): Promise<number> {
             autoDiscover: { channels: "refresh" },
           },
     );
-    return (spends ? (b.surplusTo as (a: string) => typeof b)(config.operatorAddress) : b) as never as {
+    return (spends ? (b.surplusTo as (a: string) => typeof b)(config.poolActorAddress) : b) as never as {
       with: (t: string, ops: (b: unknown) => void) => {
         invoke: (cb: (a: never) => unknown) => { execute: (o: unknown) => Promise<unknown> };
       };
@@ -278,7 +292,7 @@ async function main(argv: string[]): Promise<number> {
   if (BigInt(licenceFelts[1] ?? "0x0") !== 0n) {
     console.log(`   already licensed for ${licenceFelts[1]}; not spending it again\n`);
   } else {
-    const licenceTx = await account.execute({
+    const licenceTx = await registryAccount.execute({
       contractAddress: config.registryAddress,
       entrypoint: "authorize_payout",
       calldata: [num.toHex(proposalId), commitment, num.toHex(amount)],
@@ -336,7 +350,7 @@ async function main(argv: string[]): Promise<number> {
     await build(false)
       .with(token, (t) => {
         (t as { transfer: (o: unknown) => unknown }).transfer({
-          recipient: config.operatorAddress,
+          recipient: config.poolActorAddress,
           // The SDK's sentinel for "open note". The literal string "OPEN" is
           // the wallet route's placeholder and means nothing here.
           amount: Open,

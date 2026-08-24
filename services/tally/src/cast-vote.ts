@@ -78,8 +78,8 @@ async function main(argv: string[]): Promise<number> {
 
   const account = new Account({
     provider,
-    address: config.operatorAddress,
-    signer: config.operatorPrivateKey,
+    address: config.poolActorAddress,
+    signer: config.poolActorPrivateKey,
     cairoVersion: "1",
   });
 
@@ -116,7 +116,7 @@ async function main(argv: string[]): Promise<number> {
   const poolCheck = await provider.callContract({
     contractAddress: config.poolAddress,
     entrypoint: "get_public_key",
-    calldata: [config.operatorAddress],
+    calldata: [config.poolActorAddress],
   });
   const registered =
     BigInt((Array.isArray(poolCheck) ? poolCheck : (poolCheck as { result: string[] }).result)[0]!) !== 0n;
@@ -200,7 +200,7 @@ async function main(argv: string[]): Promise<number> {
       autoSelectNotes: "naive",
     });
     return (spends
-      ? (b.surplusTo as (a: string) => typeof b)(config.operatorAddress)
+      ? (b.surplusTo as (a: string) => typeof b)(config.poolActorAddress)
       : b) as never as {
       with: (t: string, ops: (b: unknown) => void) => {
         execute: (o: unknown) => Promise<unknown>;

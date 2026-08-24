@@ -125,13 +125,13 @@ async function main(): Promise<number> {
 
   const account = new Account({
     provider,
-    address: config.operatorAddress,
-    signer: config.operatorPrivateKey,
+    address: config.poolActorAddress,
+    signer: config.poolActorPrivateKey,
     cairoVersion: "1",
   });
   const transfers = createPrivateTransfers({
     account,
-    viewingKeyProvider: { getViewingKey: async () => config.operatorViewingKey! },
+    viewingKeyProvider: { getViewingKey: async () => config.poolActorViewingKey! },
     provingProvider: { url: provingServiceUrl, chainId },
     discoveryProvider: { url: config.indexerUrl },
     poolContractAddress: config.poolAddress,
@@ -147,7 +147,7 @@ async function main(): Promise<number> {
       autoSelectNotes: "naive",
     });
     const withSurplus = (builder.surplusTo as (a: string) => typeof builder)(
-      config.operatorAddress,
+      config.poolActorAddress,
     ) as never as {
       with: (t: string, ops: (b: unknown) => void) => {
         invoke: (cb: () => unknown) => { execute: (o: unknown) => Promise<unknown> };
