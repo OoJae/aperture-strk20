@@ -37,7 +37,18 @@ function render(): string {
   // Only contracts that exist on the network being submitted. Sepolia
   // addresses are excluded by construction — putting them here is what made
   // half the previous array resolve to "Contract not found".
-  const contracts = [deployment.registry, deployment.anonymizer];
+  //
+  // Superseded generations are included, after the live pair, because the
+  // transactions above ran through them. Every mainnet transaction in this
+  // manifest predates v2 and went through the v1 registry and anonymizer, so
+  // listing only v2 would hand a reviewer ten transactions that touch none of
+  // the contracts named beside them. Both answers stay true this way: these are
+  // all Aperture's contracts, and every listed transaction touched one of them.
+  const contracts = [
+    deployment.registry,
+    deployment.anonymizer,
+    ...(deployment.superseded ?? []).map((s) => s.address),
+  ];
 
   return `${JSON.stringify({ transactions, contracts, demo_video: DEMO_VIDEO, demo_url: DEMO_URL }, null, 2)}\n`;
 }

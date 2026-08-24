@@ -61,9 +61,26 @@ test("scoring transactions occupy a strict prefix", () => {
   }
 });
 
-test("contracts are the active network's, and only those", () => {
+test("contracts are the active network's, live pair first", () => {
   const deployment = DEPLOYMENTS[ACTIVE];
-  assert.deepEqual(manifest.contracts, [deployment.registry, deployment.anonymizer]);
+  assert.deepEqual(manifest.contracts, [
+    deployment.registry,
+    deployment.anonymizer,
+    ...(deployment.superseded ?? []).map((s) => s.address),
+  ]);
+});
+
+test("every listed transaction has a contract it could have touched", () => {
+  // The reason superseded contracts are listed at all. Every mainnet
+  // transaction in the manifest predates v2 and ran through the v1 pairing, so
+  // a manifest naming only the live contracts would present ten transactions
+  // beside two contracts that none of them touched.
+  const throughSomething = LEDGER.filter((e) => e.network === ACTIVE && e.through !== null);
+  assert.ok(throughSomething.length > 0, "no routed transactions to check");
+  assert.ok(
+    manifest.contracts.length >= 2,
+    "a manifest with routed transactions must name the contracts they routed through",
+  );
 });
 
 test("no Sepolia address leaks into a mainnet manifest", () => {

@@ -16,6 +16,15 @@ export type NetworkName = "mainnet" | "sepolia";
 
 export interface SupersededContract {
   readonly address: string;
+  /**
+   * Which of the two it is, as data rather than as prose.
+   *
+   * `role` is written for a human and says things like "ProposalRegistry (v2,
+   * first attempt)". Code needs to know that a transaction emitting an event
+   * from a dead anonymizer still ran through Aperture's own code, and matching
+   * that out of a sentence is how a rename quietly breaks a verifier.
+   */
+  readonly kind: "registry" | "anonymizer";
   readonly role: string;
   /** Why it was replaced, in a sentence a stranger can act on. */
   readonly why: string;
@@ -134,6 +143,7 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
       {
         address:
           "0x0371e11c7cae61bc2fd5ce6b75153d59746ecf2d88b286be6ebe9c7c001e330c",
+        kind: "registry",
         role: "ProposalRegistry (v1)",
         why:
           "Superseded by v2 on 2026-08-24. No quorum, no published " +
@@ -145,6 +155,7 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
       {
         address:
           "0x05cc31d13d5901347d009f70f59abacb22b76e84963286004b67bf4644546890",
+        kind: "anonymizer",
         role: "GovernanceAnonymizer (v1)",
         why:
           "Superseded by v2 on 2026-08-24. Holds 14 STRK that nobody can " +
@@ -186,6 +197,7 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
       {
         address:
           "0x045c7c6d4bbea680dadd7ea248ec793d84ad55f3d381be7c5710b12c900e1cf9",
+        kind: "registry",
         role: "ProposalRegistry",
         why:
           "Constructed with the Argent account class, whose constructor takes " +
@@ -197,6 +209,7 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
       {
         address:
           "0x01432bc68815695d4be3300cb29085aa916c97c11b7eb04e27ae9b84ad82b64f",
+        kind: "registry",
         role: "ProposalRegistry (v1)",
         why:
           "Superseded by v2 on 2026-08-23. v1 had no quorum, published no " +
@@ -206,6 +219,7 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
       {
         address:
           "0x00533fedd104a3dd4097a6ad58f9a5637553f1a83f976867866cb60c02d7466d",
+        kind: "anonymizer",
         role: "GovernanceAnonymizer (v1)",
         why:
           "Superseded by v2 on 2026-08-23. Holds 20.5 STRK that nobody can " +
@@ -216,6 +230,7 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
       {
         address:
           "0x02a7fea0197b6299c1c1effd7f7ec4319b8e027298cd64a40652b6b0263aac4c",
+        kind: "registry",
         role: "ProposalRegistry (v2, first attempt)",
         why:
           "Never used. Deployed against DAO_MASTER_PUBLIC_KEY_V2 while every " +
@@ -226,6 +241,7 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
       {
         address:
           "0x0490ea9d4752b57eb4abafa1d1b340324ce9a3d6caba579d13cd311dcd948600",
+        kind: "anonymizer",
         role: "GovernanceAnonymizer (v2, first attempt)",
         why:
           "Never used, holds nothing, and immutable — so it is dead rather " +

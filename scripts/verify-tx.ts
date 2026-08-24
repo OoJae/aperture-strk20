@@ -37,6 +37,7 @@ const CONTEXT = {
   pool: DEPLOYMENT.pool,
   registry: DEPLOYMENT.registry,
   anonymizer: DEPLOYMENT.anonymizer,
+  superseded: DEPLOYMENT.superseded,
 };
 
 /** Defaults to the endpoint the organisers' verifier uses. */

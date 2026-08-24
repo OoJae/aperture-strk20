@@ -28,6 +28,19 @@ export interface ReceiptContext {
   readonly pool: string;
   readonly registry: string;
   readonly anonymizer: string;
+  /**
+   * Earlier generations, which still count as Aperture's own code.
+   *
+   * A transaction that emitted an event from the v1 anonymizer ran through a
+   * contract we wrote, and it does not stop having done so because a v2 was
+   * deployed afterwards. Without this, repointing the active deployment made
+   * every historical transaction reclassify from "scores" to "counts for
+   * nothing" — six of ten, in one edit, with the chain unchanged.
+   */
+  readonly superseded?: readonly {
+    readonly address: string;
+    readonly kind: "registry" | "anonymizer";
+  }[];
 }
 
 export interface ReceiptVerdict {
@@ -66,12 +79,14 @@ export function classifyReceipt(
 
   type OurEvent = { from: string; role: "registry" | "anonymizer" };
   const ourEvents: OurEvent[] = [];
+  const ours: readonly { address: string; kind: "registry" | "anonymizer" }[] = [
+    { address: context.anonymizer, kind: "anonymizer" },
+    { address: context.registry, kind: "registry" },
+    ...(context.superseded ?? []),
+  ];
   for (const e of events) {
-    if (sameAddress(e.from_address, context.anonymizer)) {
-      ourEvents.push({ from: e.from_address, role: "anonymizer" });
-    } else if (sameAddress(e.from_address, context.registry)) {
-      ourEvents.push({ from: e.from_address, role: "registry" });
-    }
+    const match = ours.find((o) => sameAddress(e.from_address, o.address));
+    if (match) ourEvents.push({ from: e.from_address, role: match.kind });
   }
 
   return {
