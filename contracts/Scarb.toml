@@ -7,6 +7,13 @@ edition = "2024_07"
 #   Scarb 2.20.0 · Cairo 2.20.0 · Starknet Foundry 0.63.0
 [dependencies]
 starknet = "2.20.0"
+# The treasury multisig wraps this rather than hand-rolling threshold logic for
+# a contract that guards funds. Requires starknet ^2.13.1; we pin 2.20.0.
+openzeppelin_governance = "3.0.0"
+# The IMultisig dispatcher lives here. Declared directly rather than relied on
+# transitively, so a future minor bump of the governance package cannot silently
+# take the interface with it.
+openzeppelin_interfaces = "2.1.0"
 
 [dev-dependencies]
 snforge_std = "0.63.0"
