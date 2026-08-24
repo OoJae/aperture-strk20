@@ -96,66 +96,131 @@ works, proving on mainnet is untested, and the lifecycle has not been run there
 because nobody has tried since those endpoints were found. A `/health` route is
 not a proof.
 
+**As of 2026-08-24 the remaining obstacle is funding, not infrastructure.** The
+v2 contracts exist and the full lifecycle has been run on Sepolia. What mainnet
+needs is enough STRK held at once, and the binding constraint is not the flat
+fee — it is resource bounds. A viewing-key registration on Sepolia was refused
+at a 4.88 STRK balance because the node wanted about 5.77 STRK of l2 gas as a
+ceiling; bounds are a ceiling rather than a bill and the transaction settles for
+a fraction, but an account that cannot cover the ceiling never runs. Mainnet's
+l2 gas price currently reads the same as Sepolia's, so the difference is the
+flat fee: 6 STRK against 2.
+
+Peak requirement for one ballot and one payout, with three ballot identities
+funded at 20 STRK each:
+
+| | STRK |
+|---|---|
+| deploy, proposal, finalize, authorize (gas only) | ~3 |
+| three ballot identities, held simultaneously | 60 |
+| shield 5 STRK of vote weight, plus one flat fee | 11 |
+| cast | 6 |
+| one 2 STRK payout: register and claim | 14 |
+| **peak held at once** | **~94** |
+| recoverable afterwards by `sweep-ballot-accounts` | ~40 |
+| **net burn** | **~55** |
+
+The deployer holds 53.4 STRK. Each additional payout adds 14.
+
 ## Sepolia
 
-The full lifecycle runs here, because Sepolia has a working prover.
+The full v2 lifecycle runs here, end to end.
 
 | | Address |
 |---|---|
-| `ProposalRegistry` (current) | `0x01432bc68815695d4be3300cb29085aa916c97c11b7eb04e27ae9b84ad82b64f` |
-| `GovernanceAnonymizer` | `0x00533fedd104a3dd4097a6ad58f9a5637553f1a83f976867866cb60c02d7466d` |
+| `ProposalRegistry` (v2) | `0x058b9e29599a1f20fd316254b965bcf7feaed7b4d48268055c1ba38d500602ff` |
+| `GovernanceAnonymizer` (v2) | `0x03986832c64ebc2e73395405d77577062021b49e749acf10ec3074ceb3e355b7` |
+| ballot domain | `0x725eaed3ac4a3056ab56c0075aaac0b62408006a46d5c3c2cc90d866e24e5cd` |
 | STRK20 pool (Sepolia) | `0x0254a6b2997ef52e9f830ce1f543f6b29768295e8d17e2267d672c552cfe0d91` |
 
-An earlier registry at `0x045c7c6d4bbea680dadd7ea248ec793d84ad55f3d381be7c5710b12c900e1cf9`
-is **superseded**: it was constructed with the Argent account class as its ballot
-class. Argent's constructor takes `[0, pubkey, 1]` while the derivation passes
-`[pubkey]`, so every address it published was one no account could be deployed
-at — a vote sent there could never have been read. The anonymizer above still
-points at it, which is why payout testing uses that pairing while voting uses
-the current registry.
+Deployed 2026-08-23. The domain was verified against an independent derivation
+**before** the anonymizer went out, because the anonymizer's registry pointer is
+write-once and a wrong one is permanent.
 
-### A real sealed ballot, cast and counted
+Four contracts are superseded; `packages/strk20-governance/src/deployments.ts`
+records each with its reason. Two are worth repeating here:
 
-- Three ballot identities deployed as OpenZeppelin accounts at their derived
-  addresses and registered with the pool.
-- A voter shielded STRK and privately transferred **5 STRK** into the FOR
-  identity.
-- The tally worker found it, aggregated, and published the result on-chain:
-  `Tally { for_weight: 5000000000000000000, against: 0, abstain: 0 }`,
-  `has_passed: true`.
+- The **v1 anonymizer** at `0x00533fed…` holds **20.5 STRK nobody can recover.**
+  Its payout preimages were displayed and never saved, and it has no sweep. Same
+  failure as the 14 STRK on mainnet, made twice. Tickets are now written to disk
+  before anything is submitted.
+- The **first v2 pair** was never used. It was deployed hours before a
+  pre-flight adversarial review found two bugs in it, and the contracts are
+  immutable, so they are dead rather than old. See
+  `docs/evidence/2026-08-23-cap-burning.md`.
 
-The ballot transaction emitted two pool events and **neither carries an amount,
-a voter, or a choice**; the on-chain sender is a relayer. The tally read it
-exactly. That gap — opaque on-chain, precise to the key holder — is the design
-working.
+### A sealed ballot, cast inside its own window (proposal 2)
 
-**That published tally counted a ballot cast after voting had closed.** The note
-arrived at block 13,604,673; the window closed at 13,603,728 — 945 blocks late.
-Re-counting the same proposal with the current worker returns **zero**, because
-it now pins to the window's close and filters by it.
+Window `13939965 .. 13942666`, about 75 minutes at Sepolia's measured 1.67s per
+block.
 
-An earlier version of this paragraph called that "just after" the close and said
-"the count is sound". Both were generous. A ballot that may arrive at any time
-makes the window constrain nothing, and an observer could wait until the result
-is known and then vote — the exact property sealed-ballot voting exists to
-prevent. v1 does not enforce arrival time anywhere, and neither did the worker
-that produced this number.
+| | |
+|---|---|
+| shield 5 STRK (public) | `0x20b7f722…174c59c` at block 13940005 |
+| **cast (private)** | `0x1d6bf8c2…f54724e` at block **13940053** |
+| finalize | `0x6876126f…34bb538` at block 13962089 |
 
-The result stays here with this note attached rather than being quietly dropped,
-because it is what happened. v2 binds the window on chain: `finalize` takes the
-block it counted through and asserts it equals `end_block`, so a late-counted
-tally cannot be published at all. The Phase D rehearsal casts inside the window,
-and that becomes the record.
+Both inside the window. Published on-chain:
 
-Full working: `docs/evidence/2026-08-23-late-ballot.md`.
+    tally             for 5 STRK, against 0, abstain 0
+    counted_through   13942666      (equals end_block, which finalize asserts)
+    provenance        BallotDerived
+    has_passed        true
 
-### A payout, driven through the pool
+The counted-through block is the part v1 could not do. A tally's validity depends
+entirely on the block it was pinned to — the same ballot box counted through two
+different blocks gives two different answers — and v1 published no pin at all.
+That is not hypothetical here: **the earlier Sepolia result published as 5 STRK
+counted a ballot that arrived 945 blocks after voting closed**, and re-counting it
+with the current worker returns zero. This document once called that "just after"
+the close and said the count was sound; both were generous, and the working is in
+`docs/evidence/2026-08-23-late-ballot.md`. The old result stays on the record with
+that note rather than being quietly dropped.
 
-The register leg was driven end to end via the SDK, producing transactions that
-carry a pool event, an event from our contract, and our address in the calldata.
-The claim leg still fails with `NON_ZERO_VALUE` and is unfinished — the register
-leg is what the scoring requires, and chasing the rest was not the best use of
-the time.
+v2 makes the valid pin unique per proposal, so anyone can re-run the count against
+the same state and compare. It does not make the sum provable. It makes the claim
+checkable, which it was not before.
+
+### A payout registered **and claimed**
+
+The first claimed payout on any network.
+
+| | |
+|---|---|
+| authorize (registry, gas only) | `0x45bad365…80032b3` at block 13962124 |
+| register (pool → anonymizer) | `0x55c684b0…dc26acb` at block 13962132 |
+| **claim** (preimage → open note) | `0x63843f32…7867f0e` at block 13962149 |
+
+Afterwards, read from the chain:
+
+    registry    authorized(2)  2 STRK of a 3 STRK cap
+    anonymizer  spent(2)       2 STRK          <- the two contracts agree
+    anonymizer  outstanding    0
+    anonymizer  unattached     0               <- nothing stranded
+    anonymizer  entry.claimed  true
+
+This document previously said the claim leg "still fails with `NON_ZERO_VALUE`
+and is unfinished — the register leg is what the scoring requires, and chasing
+the rest was not the best use of the time." The cause was a stale note index:
+discovery and proving share one block parameter, so a pin chosen before the
+transaction it depends on reads pre-transaction state, and the pool rejects the
+resulting index by naming a storage slot rather than the staleness. Waiting for
+the settled pin to pass the register transaction fixed it.
+`docs/evidence/2026-08-23-claim-leg-diagnosis.md`.
+
+### The cap-burn attack, attempted against the live contract
+
+An unlicensed registration, built exactly as an outsider would build it:
+
+    REFUSED with PAYOUT_NOT_AUTHORIZED, spent unchanged at 2000000000000000000
+
+Refused during fee estimation, before submission, so it cost nothing. Re-runnable
+with `node services/tally/src/probe-cap-burn.ts <proposal> <amount>`.
+
+This matters because the contract tests could not have found the bug: every one
+of them approached `register_payout` as the DAO, which is exactly the blind spot
+that let it through. A passing suite also cannot tell you the deployed bytecode
+is the code you tested. This can.
 
 ### Configuration, not constants
 
