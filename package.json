@@ -21,7 +21,8 @@
     "verify": "node scripts/verify-tx.ts --all",
     "contracts:build": "cd contracts && scarb build",
     "contracts:test": "cd contracts && snforge test",
-    "record-tx": "node scripts/record-tx.ts"
+    "record-tx": "node scripts/record-tx.ts",
+    "deploy:site": "scripts/deploy-site.sh"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
