@@ -45,6 +45,8 @@ interface Params {
   minQuorum: string;
   assertedPayoutCap: string;
   payoutTimelockBlocks: string;
+  multisigQuorum: number;
+  multisigSigners: string[];
   pool: string;
   account: string;
 }
@@ -53,6 +55,8 @@ interface State {
   network: Network;
   registryClassHash?: string;
   anonymizerClassHash?: string;
+  multisigClassHash?: string;
+  multisig?: string;
   registry?: string;
   anonymizer?: string;
   ballotDomain?: string;
@@ -195,10 +199,13 @@ async function main(): Promise<number> {
   const felt = (v: string) => num.toHex(BigInt(v));
   const short = (v: string) => num.toHex(BigInt(shortString.encodeShortString(v)));
 
-  console.log(`\nAperture v2 -> ${network}`);
+  console.log(`\nAperture v3 -> ${network}`);
   console.log(`  account   ${params.account}`);
   console.log(`  owner     ${params.owner}`);
-  console.log(`  operator  ${params.tallyOperator}`);
+  console.log(
+    `  operator  a ${params.multisigQuorum}-of-${params.multisigSigners.length} ` +
+      `TreasuryMultisig, deployed below`,
+  );
   console.log(`  epoch     ${params.epoch}`);
   console.log(`  quorum    ${BigInt(params.minQuorum) / 10n ** 18n} STRK floor`);
   console.log(`  asserted  ${BigInt(params.assertedPayoutCap) / 10n ** 18n} STRK cap`);
@@ -212,7 +219,12 @@ async function main(): Promise<number> {
   execFileSync("scarb", ["build"], { cwd: resolve(ROOT, "contracts"), stdio: "inherit" });
 
   // 2 — declare both classes
+  // The anonymizer's code is unchanged from v2, so its class hash is identical
+  // and already on chain — `declare` returns it from the error path rather than
+  // charging for it again. Declaring is by far the most expensive step (30.7
+  // STRK for two classes on mainnet), so this is worth not getting wrong.
   for (const [name, key] of [
+    ["TreasuryMultisig", "multisigClassHash"],
     ["ProposalRegistry", "registryClassHash"],
     ["GovernanceAnonymizer", "anonymizerClassHash"],
   ] as const) {
@@ -241,7 +253,34 @@ async function main(): Promise<number> {
     console.log(`   ${classHash}`);
   }
 
-  // 3 — registry
+  // 3 — the multisig, first, because it becomes the registry's tally operator
+  //     and the registry fixes that address at construction. Deploying them the
+  //     other way round would mean a registry whose treasury is controlled by
+  //     whatever address happened to be in params, permanently.
+  if (!state.multisig) {
+    console.log("3. Deploying TreasuryMultisig");
+    const signerCalldata = [
+      felt(String(params.multisigQuorum)),
+      felt(String(params.multisigSigners.length)),
+      ...params.multisigSigners.map(felt),
+    ];
+    const out = sncast(
+      ["deploy", "--class-hash", state.multisigClassHash!, "--constructor-calldata", ...signerCalldata],
+      rpc,
+      params.account,
+    );
+    const address = field(out, "contract_address", "contractAddress");
+    if (!address) {
+      throw new Error(`Could not read the multisig address from:\n${JSON.stringify(out, null, 2)}`);
+    }
+    state.multisig = address;
+    writeState(state);
+    console.log(`   ${address}`);
+  } else {
+    console.log(`3. TreasuryMultisig already deployed: ${state.multisig}`);
+  }
+
+  // 4 — registry
   if (!state.registry) {
     console.log("3. Deploying ProposalRegistry");
     const out = sncast(
@@ -250,7 +289,9 @@ async function main(): Promise<number> {
         "--class-hash", state.registryClassHash!,
         "--constructor-calldata",
         felt(params.owner),
-        felt(params.tallyOperator),
+        // The multisig, not an EOA. This is the whole point of deploying it
+        // first, and it can never be changed afterwards.
+        felt(state.multisig!),
         felt(params.ballotAccountClassHash),
         felt(masterPublicKey),
         short(params.chainId),
@@ -319,6 +360,7 @@ async function main(): Promise<number> {
   }
 
   console.log(`\nRecorded in deployments/${network}.json:`);
+  console.log(`  multisig    ${state.multisig}`);
   console.log(`  registry    ${state.registry}`);
   console.log(`  anonymizer  ${state.anonymizer}`);
   console.log(`  domain      ${state.ballotDomain}`);
