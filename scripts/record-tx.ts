@@ -77,6 +77,7 @@ async function main(): Promise<number> {
     pool: deployment.pool,
     registry: deployment.registry,
     anonymizer: deployment.anonymizer,
+    multisig: deployment.multisig,
     superseded: deployment.superseded,
   });
 

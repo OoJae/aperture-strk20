@@ -37,6 +37,7 @@ const CONTEXT = {
   pool: DEPLOYMENT.pool,
   registry: DEPLOYMENT.registry,
   anonymizer: DEPLOYMENT.anonymizer,
+  multisig: DEPLOYMENT.multisig,
   superseded: DEPLOYMENT.superseded,
 };
 

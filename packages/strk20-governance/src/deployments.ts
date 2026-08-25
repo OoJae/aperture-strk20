@@ -24,7 +24,7 @@ export interface SupersededContract {
    * from a dead anonymizer still ran through Aperture's own code, and matching
    * that out of a sentence is how a rename quietly breaks a verifier.
    */
-  readonly kind: "registry" | "anonymizer";
+  readonly kind: "registry" | "anonymizer" | "multisig";
   readonly role: string;
   /** Why it was replaced, in a sentence a stranger can act on. */
   readonly why: string;
@@ -44,6 +44,12 @@ export interface NetworkDeployment {
   readonly strkToken: string;
   readonly registry: string;
   readonly anonymizer: string;
+  /**
+   * The TreasuryMultisig that is the registry's tally_operator, when the
+   * deployment has one. A transaction it emits from is ours as much as one
+   * from the registry, and the scoring rule has to know that.
+   */
+  readonly multisig?: string;
   readonly registryClassHash: string;
   readonly anonymizerClassHash: string;
   readonly ballotAccountClassHash: string;
@@ -55,7 +61,7 @@ export interface NetworkDeployment {
    */
   readonly epoch: string | null;
   readonly deployedAt: string;
-  readonly contractVersion: "v1" | "v2";
+  readonly contractVersion: "v1" | "v2" | "v3";
   /**
    * A published discovery service for this network, or null. Verified by a real
    * POST to /v1/sync/incoming_state, not by a health route — see
@@ -119,20 +125,22 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
     strkToken:
       "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
     registry:
-      "0x02994d8a2b9a78d7c6c3d49696a22ec2010ffa120da09481ed1e5065e770e989",
+      "0x05fe6b3b4755184eccd1efbcaac3ba647bbaf578a8ff7fbf31602aee83d0e7c5",
     anonymizer:
-      "0x01379a8daf18dfbb24b6ec80feb846b6445692090ab34ba0b286d49d1c04e1c5",
+      "0x01d66b83171db42b8c1bfda02d30149a4888a80e7cb6f84da9837943940df156",
+    multisig:
+      "0x05e59931f2b0ee69617418d5053de782b0b38a5a72e5d414d65e2a67adecfee8",
     registryClassHash:
-      "0x017b824cdadca3849e194f528fbc1740060210fb1f02ae7505055e56b380605a",
+      "0x03eceb8affabdc8cf095856545d17722eecf8c2ea519b0696932490e259127e3",
     anonymizerClassHash:
       "0x0659758006c9e0c8bac1ea0fe33df8a2ff5549fd5be90744184f11935471a542",
     ballotAccountClassHash:
       "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
     daoMasterPublicKey:
       "0x19fc7bf266b468a25073da987cf4b6392346b6c2c1cbfaf19be13e1bdcd3702",
-    epoch: "APERTURE:V2:2026-08",
-    deployedAt: "2026-08-24",
-    contractVersion: "v2",
+    epoch: "APERTURE:V3:2026-08",
+    deployedAt: "2026-08-25",
+    contractVersion: "v3",
     indexerUrl: "https://discovery-service.alpha-mainnet.sw-dev.io",
     provingServiceUrl: "https://transaction-prover.alpha-mainnet.sw-dev.io",
     // True as of proposal 1: all three accounts are deployed at the addresses
@@ -142,6 +150,29 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
     // to voters, which is the reason this field exists at all.
     ballotIdentitiesLive: true,
     superseded: [
+      {
+        address:
+          "0x02994d8a2b9a78d7c6c3d49696a22ec2010ffa120da09481ed1e5065e770e989",
+        kind: "registry",
+        role: "ProposalRegistry (v2)",
+        why:
+          "Superseded by v3 on 2026-08-25. Complete while it stood: 22 " +
+          "transactions, a sealed ballot cast inside its window, and the first " +
+          "claimed payout on any network. Replaced because it could not be " +
+          "extended — tally_operator has no setter and finalize had nowhere to " +
+          "put a ballot-set commitment. Holds no funds.",
+      },
+      {
+        address:
+          "0x01379a8daf18dfbb24b6ec80feb846b6445692090ab34ba0b286d49d1c04e1c5",
+        kind: "anonymizer",
+        role: "GovernanceAnonymizer (v2)",
+        why:
+          "Superseded by v3 on 2026-08-25, only because the registry it points " +
+          "at is write-once. Its code is unchanged — the v3 instance runs the " +
+          "same class hash. Holds nothing: outstanding and unattached both read " +
+          "zero after its payout was claimed.",
+      },
       {
         address:
           "0x0371e11c7cae61bc2fd5ce6b75153d59746ecf2d88b286be6ebe9c7c001e330c",
@@ -506,6 +537,138 @@ export const LEDGER: readonly LedgerEntry[] = [
     what: "The first claimed payout on mainnet",
     detail:
       "The preimage opened the commitment and the anonymizer approved the pool to pull exactly the escrowed amount into an open note. Afterwards outstanding is 0 and unattached is 0 — nothing stranded, which is the thing 14 STRK in the v1 anonymizer could not manage.",
+  },
+  {
+    hash: "0xfbd8378d325c2ca3e17fcfd0946fdb4eccea63d0458802e48ff9e05276588f",
+    network: "mainnet",
+    kind: "proposal-create",
+    block: 13843203,
+    scores: true,
+    through: "registry",
+    what: "Proposal 1 on v3",
+    detail:
+      "Window genuinely ahead, quorum floor 5 STRK, payout cap 2 STRK.",
+  },
+  {
+    hash: "0x19173638ef05f8211c9cfbd7c75e25428dc6a41f417de3ab108d4cff86bc173",
+    network: "mainnet",
+    kind: "ballot-register",
+    block: 13843257,
+    scores: false,
+    through: null,
+    what: "FOR identity registers its viewing key",
+    detail:
+      "Until this lands the address the registry publishes cannot receive a sealed vote.",
+  },
+  {
+    hash: "0x1febfd16eee351bba28045090c91b6cc18fe3e4e42517a1925cf7d12149a2d6",
+    network: "mainnet",
+    kind: "ballot-register",
+    block: 13843268,
+    scores: false,
+    through: null,
+    what: "AGAINST identity registers its viewing key",
+    detail:
+      "All three choices stood up, so no voter is offered an address nothing can receive at.",
+  },
+  {
+    hash: "0x3b34f763fe1e5b563037b8952664c34a7d2f3684e818e3a6086fe2864c12acb",
+    network: "mainnet",
+    kind: "ballot-register",
+    block: 13843288,
+    scores: false,
+    through: null,
+    what: "ABSTAIN identity registers its viewing key",
+    detail:
+      "Completes the set.",
+  },
+  {
+    hash: "0x73305b56bf39169cae94dad89a58f66238d104ab665db0249696998b085d63d",
+    network: "mainnet",
+    kind: "shield",
+    block: 13843950,
+    scores: false,
+    through: null,
+    what: "Shield 5 STRK of vote weight",
+    detail:
+      "Public by design: address, token and amount all show.",
+  },
+  {
+    hash: "0x3c03b8a0cc4aeb06d55683f5d902c17e5ae26cdf761db9ff5041e1b3d4cf28e",
+    network: "mainnet",
+    kind: "ballot-cast",
+    block: 13843979,
+    scores: false,
+    through: null,
+    what: "Sealed ballot: 5 STRK FOR proposal 1",
+    detail:
+      "Inside the window 13843905..13844788. The pool events carry no amount, no voter and no choice.",
+  },
+  {
+    hash: "0x601e2c8b963ddd1692a7a4e8720f25d70ded026feff4b7de3928dfc512bd8fb",
+    network: "mainnet",
+    kind: "finalize",
+    block: 13844825,
+    scores: true,
+    through: "registry",
+    what: "Tally published, and the ballot set committed to",
+    detail:
+      "5 STRK for, counted_through 13844788 = end_block, provenance BallotDerived, ballot_commitment 0x715fb9e7.... verify-tally recomputes that felt from an independent count and matches it. Routed through the multisig, so it carries two of our events: the registry's and the multisig's.",
+  },
+  {
+    hash: "0x1288aa459a8a7a1f85a4a4b61eb9d7045a551f4be0f19d69d3c451669db110f",
+    network: "mainnet",
+    kind: "payout-authorize",
+    block: 13844973,
+    scores: true,
+    through: "registry",
+    what: "Payout announced, starting the timelock",
+    detail:
+      "Grants nothing. Reserves 1 STRK of the 2 STRK cap and records the block, making the payout visible 1800 blocks before it can be used.",
+  },
+  {
+    hash: "0x7c34cb2221ed5b8a7e375615c8463b40508fbae888eed8fe67e1200ae84562a",
+    network: "mainnet",
+    kind: "payout-authorize",
+    block: 13846793,
+    scores: true,
+    through: "registry",
+    what: "Payout licensed, 1800 blocks later",
+    detail:
+      "The timelock elapsed and a quorum confirmed. A single key cannot reach this state: the registry's tally_operator is a 2-of-3 multisig.",
+  },
+  {
+    hash: "0x144fdb94ec51ef1f462bbb185538fd852a5d2e441879841b29cf7a892710bdb",
+    network: "mainnet",
+    kind: "payout-register",
+    block: 13846811,
+    scores: true,
+    through: "anonymizer",
+    what: "1 STRK escrowed against a commitment",
+    detail:
+      "The pool withdrew to GovernanceAnonymizer and called its privacy_invoke; the contract checked the registry's licence and its own escrow ledger before parking the value.",
+  },
+  {
+    hash: "0x500f21db7e4864ca024fd1c9febcd8b8c8c1408282b72aa0eb926a02b4d0491",
+    network: "mainnet",
+    kind: "payout-claim",
+    block: 13846833,
+    scores: true,
+    through: "anonymizer",
+    what: "Payout claimed",
+    detail:
+      "The preimage opened the commitment. Afterwards outstanding is 0 and unattached is 0.",
+  },
+  {
+    hash: "0x66fc98d1d2d1b02ee7a3a35b115c11d6e2c3d399ccf2865708b5622497037b1",
+    network: "mainnet",
+    kind: "private-transfer",
+    block: 13846856,
+    scores: false,
+    through: null,
+    what: "The first refund on mainnet: 5 STRK returned to the voter",
+    detail:
+      "Vote weight was a one-way stake until this landed. Re-running the count afterwards returns the same total and the same ballot-set commitment, because discovery reads received-transfer history rather than the unspent set.",
   },
 ];
 

@@ -39,14 +39,16 @@ function render(): string {
   // half the previous array resolve to "Contract not found".
   //
   // Superseded generations are included, after the live pair, because the
-  // transactions above ran through them. Every mainnet transaction in this
-  // manifest predates v2 and went through the v1 registry and anonymizer, so
-  // listing only v2 would hand a reviewer ten transactions that touch none of
-  // the contracts named beside them. Both answers stay true this way: these are
-  // all Aperture's contracts, and every listed transaction touched one of them.
+  // transactions above ran through them. The manifest now spans three
+  // generations — ten transactions through v1, twelve through v2, and v3's own —
+  // so listing only the live pair would hand a reviewer a majority of
+  // transactions that touch none of the contracts named beside them. Both
+  // answers stay true this way: these are all Aperture's contracts, and every
+  // listed transaction touched one of them.
   const contracts = [
     deployment.registry,
     deployment.anonymizer,
+    ...(deployment.multisig ? [deployment.multisig] : []),
     ...(deployment.superseded ?? []).map((s) => s.address),
   ];
 

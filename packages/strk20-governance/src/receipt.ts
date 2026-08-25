@@ -28,6 +28,8 @@ export interface ReceiptContext {
   readonly pool: string;
   readonly registry: string;
   readonly anonymizer: string;
+  /** The treasury multisig, when the deployment has one. */
+  readonly multisig?: string;
   /**
    * Earlier generations, which still count as Aperture's own code.
    *
@@ -39,7 +41,7 @@ export interface ReceiptContext {
    */
   readonly superseded?: readonly {
     readonly address: string;
-    readonly kind: "registry" | "anonymizer";
+    readonly kind: "registry" | "anonymizer" | "multisig";
   }[];
 }
 
@@ -48,7 +50,10 @@ export interface ReceiptVerdict {
   readonly revertReason?: string;
   readonly blockNumber?: number;
   readonly poolEvents: number;
-  readonly ourEvents: readonly { readonly from: string; readonly role: "registry" | "anonymizer" }[];
+  readonly ourEvents: readonly {
+    readonly from: string;
+    readonly role: "registry" | "anonymizer" | "multisig";
+  }[];
   /** SUCCEEDED and at least one event from Aperture's own code. */
   readonly scores: boolean;
   /** SUCCEEDED and at least one event from the pool. Looser. */
@@ -77,11 +82,12 @@ export function classifyReceipt(
 
   const poolEvents = events.filter((e) => sameAddress(e.from_address, context.pool)).length;
 
-  type OurEvent = { from: string; role: "registry" | "anonymizer" };
+  type OurEvent = { from: string; role: "registry" | "anonymizer" | "multisig" };
   const ourEvents: OurEvent[] = [];
-  const ours: readonly { address: string; kind: "registry" | "anonymizer" }[] = [
+  const ours: readonly { address: string; kind: "registry" | "anonymizer" | "multisig" }[] = [
     { address: context.anonymizer, kind: "anonymizer" },
     { address: context.registry, kind: "registry" },
+    ...(context.multisig ? [{ address: context.multisig, kind: "multisig" as const }] : []),
     ...(context.superseded ?? []),
   ];
   for (const e of events) {
