@@ -71,3 +71,35 @@ test("the example file contains no value that looks like a key", () => {
     assert.ok(value !== undefined);
   }
 });
+
+test("a network's example endpoints point at that network", () => {
+  // .env.example shipped INDEXER_URL and PROVING_SERVICE_URL — the MAINNET
+  // names — carrying Sepolia urls, while the _SEPOLIA names were blank. So the
+  // documented walkthrough, which targets Sepolia, could not resolve an indexer
+  // at all, and anyone switching to mainnet silently queried Sepolia's.
+  //
+  // It happened because network-scoping those variables added new names without
+  // giving them example values, and nothing compared a value to the network in
+  // its own name.
+  const example = readFileSync(resolve(ROOT, ".env.example"), "utf8");
+  const value = (name: string): string | undefined =>
+    example.match(new RegExp(`^${name}=(.*)$`, "m"))?.[1]?.trim();
+
+  for (const base of ["INDEXER_URL", "PROVING_SERVICE_URL"]) {
+    const mainnet = value(base);
+    const sepolia = value(`${base}_SEPOLIA`);
+
+    assert.ok(mainnet, `${base} should ship a working value`);
+    assert.ok(sepolia, `${base}_SEPOLIA should ship a working value`);
+    assert.match(
+      mainnet!,
+      /mainnet/,
+      `${base} is the mainnet variable and must not carry a Sepolia endpoint`,
+    );
+    assert.match(
+      sepolia!,
+      /sepolia/,
+      `${base}_SEPOLIA must carry a Sepolia endpoint`,
+    );
+  }
+});
