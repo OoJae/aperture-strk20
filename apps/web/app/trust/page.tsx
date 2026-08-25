@@ -30,7 +30,7 @@ const TRUSTED = [
   },
   {
     h: "Refunds",
-    p: "Computed but not executable, for two reasons rather than the one usually given. Issuing a refund is a private transfer, which needs a proving service. It also needs a payee, and the tally worker discards the sender of each note when it reads it — so the queue has no recipient recorded even in principle. Treat voting as a one-way stake.",
+    p: "They execute. 5 STRK has gone back to the voter who staked it, on mainnet and on Sepolia, as a private transfer to the account the note came from. This was blocked for two reasons rather than the one usually given: a refund needs a proving service, and it needs a payee — and the worker used to discard the sender of each note as it read it, so the queue had no recipient recorded even in principle. What remains is economics rather than capability. A pool transaction costs a flat 6 STRK on mainnet, so refunding a 5 STRK ballot destroys more than it returns, one note at a time. Batching a proposal's refunds into a single pool transaction is the fix, and it is not built.",
   },
   {
     h: "Value sent to the anonymizer without a commitment",
