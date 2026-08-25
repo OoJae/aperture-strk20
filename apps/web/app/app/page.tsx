@@ -1,6 +1,6 @@
 import { Chrome } from "../components/Chrome.tsx";
 import { Proposals } from "../components/Proposals.tsx";
-import { TreasuryPayout } from "../components/TreasuryPayout.tsx";
+import { TreasuryPayoutRecord } from "../components/TreasuryPayoutRecord.tsx";
 import {
   ANONYMIZER_ADDRESS,
   POOL_ADDRESS,
@@ -27,8 +27,10 @@ export default function App() {
         <p className="label">Live · Starknet mainnet</p>
         <h1>The app</h1>
         <p className="dim">
-          Everything below is read from mainnet as you load it. Reading needs no
-          wallet; only the payout does.
+          Everything below is read from mainnet as you load it. No wallet, and
+          nothing here can spend anything — a payout needs a quorum of the
+          treasury multisig and an hour-long timelock, which is a thing a page
+          cannot offer you.
         </p>
       </section>
 
@@ -36,7 +38,7 @@ export default function App() {
 
       <Proposals />
 
-      <TreasuryPayout />
+      <TreasuryPayoutRecord />
 
       <section className="shell block">
         <p className="label">Contracts</p>

@@ -38,7 +38,6 @@ export {
 
 export {
   ACTIVE,
-  DEMO,
   DEMO_URL,
   DEMO_VIDEO,
   DEPLOYMENTS,

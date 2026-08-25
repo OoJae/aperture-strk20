@@ -677,16 +677,6 @@ export const DEMO_URL = "https://aperture-strk20.vercel.app";
 /** Empty until one exists. Never fill this in speculatively. */
 export const DEMO_VIDEO = "";
 
-/**
- * The demo's payout parameters, in one place so the calldata and the visible
- * copy cannot disagree. They were independent literals once, which is exactly
- * how a button ends up promising something the transaction does not do.
- */
-export const DEMO = {
-  payoutProposalId: 2n,
-  payoutAmount: 2n * 10n ** 18n,
-} as const;
-
 export const scoring = (network: NetworkName = ACTIVE): readonly LedgerEntry[] =>
   LEDGER.filter((e) => e.network === network && e.scores);
 
