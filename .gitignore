@@ -47,3 +47,6 @@ apps/web/out/
 
 # Refund receipts. Written before submitting, same reasoning as .payouts.
 .refunds/
+
+# HyperFrames video project: captures, node_modules and renders.
+videos/

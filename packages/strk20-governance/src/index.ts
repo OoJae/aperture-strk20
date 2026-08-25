@@ -43,6 +43,7 @@ export {
   DEPLOYMENTS,
   LEDGER,
   contractUrl,
+  latestPayoutSequence,
   nonScoring,
   scoring,
   txUrl,
@@ -51,6 +52,7 @@ export type {
   LedgerEntry,
   NetworkDeployment,
   NetworkName,
+  PayoutSequence,
   SupersededContract,
   TxKind,
 } from "./deployments.ts";

@@ -158,7 +158,8 @@ export const DEPLOYMENTS: Readonly<Record<NetworkName, NetworkDeployment>> = {
         why:
           "Superseded by v3 on 2026-08-25. Complete while it stood: 22 " +
           "transactions, a sealed ballot cast inside its window, and the first " +
-          "claimed payout on any network. Replaced because it could not be " +
+          "claimed payout on mainnet — Sepolia's came ten hours earlier and " +
+          "was the first on any network. Replaced because it could not be " +
           "extended — tally_operator has no setter and finalize had nowhere to " +
           "put a ballot-set commitment. Holds no funds.",
       },
@@ -674,8 +675,11 @@ export const LEDGER: readonly LedgerEntry[] = [
 
 export const DEMO_URL = "https://aperture-strk20.vercel.app";
 
-/** Empty until one exists. Never fill this in speculatively. */
-export const DEMO_VIDEO = "";
+/**
+ * The demo film. 2:37, public — verified reachable without an account, which is
+ * the property that matters: a judge follows this link cold.
+ */
+export const DEMO_VIDEO = "https://youtu.be/rOHlgf17WqA";
 
 export const scoring = (network: NetworkName = ACTIVE): readonly LedgerEntry[] =>
   LEDGER.filter((e) => e.network === network && e.scores);
@@ -684,6 +688,43 @@ export const nonScoring = (
   network: NetworkName = ACTIVE,
 ): readonly LedgerEntry[] =>
   LEDGER.filter((e) => e.network === network && !e.scores);
+
+/**
+ * The most recent complete treasury payout, leg by leg.
+ *
+ * Filtering the ledger on `kind` alone spans every contract generation — mainnet
+ * carries thirteen `payout-*` entries across v1, v2 and v3 — so taking "the
+ * first two" mixes unrelated payouts together. A consumer that did exactly that
+ * rendered the distance between two v1 payouts as this one's timelock.
+ *
+ * So the sequence is walked backwards from the newest claim: each leg is the
+ * latest of its kind strictly before the leg that follows it. That yields one
+ * coherent payout instead of a mix, and it keeps naming the right one after the
+ * next payout runs. Legs are `undefined` when the network has never had one.
+ */
+export interface PayoutSequence {
+  readonly announced?: LedgerEntry;
+  readonly licensed?: LedgerEntry;
+  readonly registered?: LedgerEntry;
+  readonly claimed?: LedgerEntry;
+}
+
+export const latestPayoutSequence = (
+  network: NetworkName = ACTIVE,
+): PayoutSequence => {
+  const legs = LEDGER.filter(
+    (e) => e.network === network && e.kind.startsWith("payout-"),
+  ).sort((a, b) => a.block - b.block);
+
+  const latest = (kind: string, before = Infinity) =>
+    legs.filter((e) => e.kind === kind && e.block < before).at(-1);
+
+  const claimed = latest("payout-claim");
+  const registered = latest("payout-register", claimed?.block);
+  const licensed = latest("payout-authorize", registered?.block);
+  const announced = latest("payout-authorize", licensed?.block);
+  return { announced, licensed, registered, claimed };
+};
 
 export const txUrl = (entry: LedgerEntry): string =>
   `${DEPLOYMENTS[entry.network].explorer}/tx/${entry.hash}`;
