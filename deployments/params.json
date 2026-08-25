@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "Constructor arguments for the v2 contracts, per network.",
+    "Constructor arguments for the v3 contracts, per network.",
     "",
     "Committed rather than typed at a prompt, because every value here is public,",
     "is fixed forever the moment the contract deploys, and should be reviewable in",
@@ -9,7 +9,10 @@
     "",
     "Ordering note: the registry must exist before the anonymizer, whose",
     "constructor calls registry.ballot_domain(). That is enforced by the chain,",
-    "not just by the script."
+    "not just by the script.",
+    "",
+    "Ordering, v3: the multisig must exist before the registry, which fixes it as",
+    "tally_operator at construction and can never be told a different one."
   ],
   "sepolia": {
     "multisigQuorum": 1,
@@ -18,11 +21,10 @@
     ],
     "_multisig": "Signers of the TreasuryMultisig that becomes tally_operator. BE HONEST ABOUT THIS: every key here is held by the maintainer, so a quorum demonstrates the mechanism rather than distributing authority. It is not theatre either \u2014 the registry genuinely cannot be driven by one key any more, and the component lets a quorum add or replace signers later, so real co-signers can be brought in without redeploying anything.",
     "chainId": "SN_SEPOLIA",
-    "epoch": "APERTURE:V2:2026-08",
+    "epoch": "APERTURE:V3:2026-08",
     "_epoch": "Part of the ballot-address derivation. Bumping it separates a redeploy that somehow lands at the same address.",
     "owner": "0x139bd35620215ff1ecb7e9ae5d997a27e702c52a9bafc0e0ab3abac83aa9fda",
-    "tallyOperator": "0x139bd35620215ff1ecb7e9ae5d997a27e702c52a9bafc0e0ab3abac83aa9fda",
-    "_operator": "The funded account. An operator that cannot pay for its own finalize is a contract that cannot be used.",
+    "_operator": "Deliberately absent: v3's tally_operator is the TreasuryMultisig deployed in the same run, so it cannot be a configured value. deploy.ts passes the live address.",
     "ballotAccountClassHash": "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
     "_class": "OpenZeppelin account. Getting this wrong yields addresses no account can be deployed at, which superseded an entire Sepolia registry once.",
     "minQuorum": "5000000000000000000",
@@ -43,16 +45,17 @@
     ],
     "_multisig": "Signers of the TreasuryMultisig that becomes tally_operator. BE HONEST ABOUT THIS: every key is held by the maintainer, so a quorum demonstrates the mechanism rather than distributing authority. It is not theatre either \u2014 the registry genuinely cannot be driven by one key any more, and a quorum can add or replace signers later, so real co-signers can be brought in without redeploying anything. 2-of-3 rather than 2-of-2 on purpose: tally_operator is fixed at construction, so under 2-of-2 losing either key would leave the treasury permanently unusable \u2014 the survivor could not reach quorum to replace the lost signer. The third is a recovery key, derived counterfactually and deployed before it first confirms anything.",
     "chainId": "SN_MAIN",
-    "epoch": "APERTURE:V2:2026-08",
+    "epoch": "APERTURE:V3:2026-08",
     "owner": "0x65ef5b14535cfd2987682d8ec5acdadaad6a5ede679addbd46d1a542569e8c4",
-    "tallyOperator": "0x65ef5b14535cfd2987682d8ec5acdadaad6a5ede679addbd46d1a542569e8c4",
     "ballotAccountClassHash": "0x5b4b537eaa2399e3aa99c4e2e0208ebd6c71bc1467938cd52c798c601e43564",
     "minQuorum": "5000000000000000000",
     "payoutTimelockBlocks": "1800",
     "_timelock": "1800 blocks, about an hour at mainnet's measured 1.7s. Long enough that a payout cannot be announced and used before anyone watching the registry could react, short enough that a legitimate one is not painful. Immutable, so this is the only chance to choose it.",
-    "assertedPayoutCap": "20000000000000000000",
-    "_assertedCap": "20 STRK. Mainnet has no proven proving path for a real tally yet, so an asserted one must be able to authorise the demo payouts \u2014 but bounded by a number published before any proposal existed.",
+    "assertedPayoutCap": "0",
+    "_assertedCap": "Zero, tightened for v3. It was 20 STRK because mainnet had no proven proving path and an asserted tally had to be able to fund the demo payouts. Mainnet has since produced a real ballot-derived tally, so an asserted one should fund nothing \u2014 the same reasoning Sepolia always had. Leaving it at 20 would keep a weaker guarantee than the chain now supports, permanently.",
     "pool": "0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a",
-    "account": "aperture-mainnet"
+    "account": "aperture-mainnet",
+    "_epoch": "Bumped for v3. The ballot domain already includes the registry address so addresses would differ regardless, but the epoch is the human-readable half of that separation and it is baked in forever.",
+    "_operator": "Deliberately absent: v3's tally_operator is the TreasuryMultisig deployed in the same run, so it cannot be a configured value. deploy.ts passes the live address."
   }
 }
