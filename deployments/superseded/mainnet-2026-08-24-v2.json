@@ -1,0 +1,12 @@
+{
+  "network": "mainnet",
+  "registryClassHash": "0x017b824cdadca3849e194f528fbc1740060210fb1f02ae7505055e56b380605a",
+  "anonymizerClassHash": "0x0659758006c9e0c8bac1ea0fe33df8a2ff5549fd5be90744184f11935471a542",
+  "registry": "0x02994d8a2b9a78d7c6c3d49696a22ec2010ffa120da09481ed1e5065e770e989",
+  "daoMasterPublicKey": "0x19fc7bf266b468a25073da987cf4b6392346b6c2c1cbfaf19be13e1bdcd3702",
+  "ballotDomain": "0x6e0f51686460107fce8af040705544c0f8f0d27c5dd5c1f463dc9808605669e",
+  "anonymizer": "0x01379a8daf18dfbb24b6ec80feb846b6445692090ab34ba0b286d49d1c04e1c5",
+  "deployedAt": "2026-08-24",
+  "superseded": "2026-08-25",
+  "supersededBecause": "Superseded by v3. Complete and verified while it stood: 22 mainnet transactions, a sealed ballot cast inside its window, a tally pinned to end_block, and the first claimed payout on any network. Replaced because the registry could not be extended \u2014 tally_operator has no setter and finalize had nowhere to put a ballot-set commitment. Holds no funds."
+}

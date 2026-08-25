@@ -22,6 +22,7 @@ import { Open, createPrivateTransfers } from "@starkware-libs/starknet-privacy-s
 import { loadConfig } from "./config.ts";
 import { describeError } from "./report-error.ts";
 import { ensurePoolAllowance } from "./pool-allowance.ts";
+import { executeAsOperator, multisigAddress } from "./multisig.ts";
 
 const MATURITY_BLOCKS = 10;
 
@@ -351,7 +352,25 @@ async function main(argv: string[]): Promise<number> {
     });
     return (Array.isArray(r) ? r : (r as { result: string[] }).result) as string[];
   };
+  // Both licence calls are tally_operator-only, and on v3 that operator is the
+  // multisig. Four gas-only transactions each — submit, two confirmations,
+  // execute — where v2 had one. That cost is the feature.
+  const multisig = multisigAddress(config);
   const submitRegistry = async (entrypoint: string, calldata: string[]): Promise<string> => {
+    if (multisig) {
+      return executeAsOperator({
+        provider,
+        config,
+        multisig,
+        entrypoint,
+        calldata,
+        // The commitment hash distinguishes two legitimately identical calls:
+        // two payouts of the same amount against the same proposal are not a
+        // mistake, and would otherwise collide into one multisig transaction.
+        salt: commitment,
+        log: (line) => console.log(line),
+      });
+    }
     const tx = await registryAccount.execute({
       contractAddress: config.registryAddress,
       entrypoint,

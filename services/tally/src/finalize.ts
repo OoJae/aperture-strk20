@@ -9,10 +9,11 @@
  * once). Nothing here is load-bearing for correctness.
  */
 
-import { Account, CallData, RpcProvider } from "starknet";
+import { Account, CallData, RpcProvider, num } from "starknet";
 import { U128_MAX, U64_MAX, assertFits } from "@oojae/strk20-governance";
 import type { TallyResult } from "@oojae/strk20-governance";
 import type { TallyConfig } from "./config.ts";
+import { executeAsOperator, multisigAddress } from "./multisig.ts";
 import type { ProposalWindow } from "./registry.ts";
 import type { TallyRun } from "./tally.ts";
 
@@ -101,6 +102,26 @@ export async function finalizeProposal(
     // different ballots.
     run.ballotCommitment,
   ]);
+
+  // `finalize` is tally_operator-only, and on v3 that operator is a multisig
+  // rather than an account anyone holds a key for. Calling the registry
+  // directly as a signer gets NOT_TALLY_OPERATOR — which is the point of the
+  // multisig, and which makes routing through it mandatory rather than optional.
+  const multisig = multisigAddress(config);
+  if (multisig) {
+    console.log(`  routing through the multisig at ${multisig}`);
+    const routed = await executeAsOperator({
+      provider,
+      config,
+      multisig,
+      entrypoint: "finalize",
+      calldata: calldata as string[],
+      // One finalize per proposal, and the contract enforces that, so the
+      // proposal id is a salt that cannot collide with anything meaningful.
+      salt: num.toHex(tally.proposalId),
+    });
+    return { transactionHash: routed };
+  }
 
   const { transaction_hash } = await account.execute({
     contractAddress: config.registryAddress,

@@ -159,6 +159,50 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
       "anonymizer has no sweep, so losing one strands the value permanently.",
   },
   {
+    name: "APERTURE_MULTISIG_ADDRESS",
+    requirement: "optional",
+    secret: false,
+    group: "Aperture contracts",
+    description:
+      "The TreasuryMultisig that is the registry's tally_operator on v3. When " +
+      "set, finalize and both payout licence calls are routed through it — a " +
+      "signer calling the registry directly gets NOT_TALLY_OPERATOR. Unset " +
+      "means the operator is a plain account, as on v2.",
+  },
+  {
+    name: "APERTURE_MULTISIG_ADDRESS_SEPOLIA",
+    requirement: "optional",
+    secret: false,
+    group: "Aperture contracts",
+    description: "Sepolia's TreasuryMultisig, if that deployment has one.",
+  },
+  {
+    name: "MULTISIG_SIGNER_RECOVERY_ADDRESS",
+    requirement: "optional",
+    secret: false,
+    group: "Secrets",
+    description:
+      "Third multisig signer. Exists so the treasury survives losing one key: " +
+      "tally_operator is immutable, so under 2-of-2 the surviving signer could " +
+      "not reach quorum to replace the lost one.",
+  },
+  {
+    name: "MULTISIG_SIGNER_RECOVERY_PRIVATE_KEY",
+    requirement: "optional",
+    secret: true,
+    group: "Secrets",
+    description: "Signs for MULTISIG_SIGNER_RECOVERY_ADDRESS.",
+  },
+  {
+    name: "MULTISIG_SIGNER_RECOVERY_SALT",
+    requirement: "optional",
+    secret: true,
+    group: "Secrets",
+    description:
+      "Deploy salt for the recovery signer's account. Without it the address " +
+      "cannot be re-derived and the account cannot be deployed.",
+  },
+  {
     name: "APERTURE_REFUND_DIR",
     requirement: "optional",
     secret: false,

@@ -1,10 +1,12 @@
 {
   "network": "mainnet",
-  "registryClassHash": "0x017b824cdadca3849e194f528fbc1740060210fb1f02ae7505055e56b380605a",
+  "multisigClassHash": "0x0702b5831db4cac013b8b72783a4d8348c255ff38641f745a12be44494128e7f",
+  "multisig": "0x05e59931f2b0ee69617418d5053de782b0b38a5a72e5d414d65e2a67adecfee8",
   "anonymizerClassHash": "0x0659758006c9e0c8bac1ea0fe33df8a2ff5549fd5be90744184f11935471a542",
-  "registry": "0x02994d8a2b9a78d7c6c3d49696a22ec2010ffa120da09481ed1e5065e770e989",
+  "registryClassHash": "0x03eceb8affabdc8cf095856545d17722eecf8c2ea519b0696932490e259127e3",
+  "registry": "0x05fe6b3b4755184eccd1efbcaac3ba647bbaf578a8ff7fbf31602aee83d0e7c5",
   "daoMasterPublicKey": "0x19fc7bf266b468a25073da987cf4b6392346b6c2c1cbfaf19be13e1bdcd3702",
-  "ballotDomain": "0x6e0f51686460107fce8af040705544c0f8f0d27c5dd5c1f463dc9808605669e",
-  "anonymizer": "0x01379a8daf18dfbb24b6ec80feb846b6445692090ab34ba0b286d49d1c04e1c5",
-  "deployedAt": "2026-08-24"
+  "ballotDomain": "0x324d800211dce4b295e62c502f3dd3da520402fa973a0ed0ea6a88b4e1cb9e2",
+  "anonymizer": "0x01d66b83171db42b8c1bfda02d30149a4888a80e7cb6f84da9837943940df156",
+  "deployedAt": "2026-08-25"
 }
