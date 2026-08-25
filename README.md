@@ -15,8 +15,9 @@ Built for the STRK20 Private Sprint, August 2026.
 
 | | Address |
 |---|---|
-| `ProposalRegistry` (mainnet) | [`0x0371e11c…001e330c`](https://voyager.online/contract/0x0371e11c7cae61bc2fd5ce6b75153d59746ecf2d88b286be6ebe9c7c001e330c) |
-| `GovernanceAnonymizer` (mainnet) | [`0x05cc31d1…44546890`](https://voyager.online/contract/0x05cc31d13d5901347d009f70f59abacb22b76e84963286004b67bf4644546890) |
+| `ProposalRegistry` (mainnet) | [`0x05fe6b3b…83d0e7c5`](https://voyager.online/contract/0x05fe6b3b4755184eccd1efbcaac3ba647bbaf578a8ff7fbf31602aee83d0e7c5) |
+| `GovernanceAnonymizer` (mainnet) | [`0x01d66b83…40df156`](https://voyager.online/contract/0x01d66b83171db42b8c1bfda02d30149a4888a80e7cb6f84da9837943940df156) |
+| `TreasuryMultisig` (mainnet) | [`0x05e59931…adecfee8`](https://voyager.online/contract/0x05e59931f2b0ee69617418d5053de782b0b38a5a72e5d414d65e2a67adecfee8) |
 | STRK20 pool (mainnet) | [`0x040337b1…6ffe812a`](https://voyager.online/contract/0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a) |
 
 Six treasury payouts have been executed on mainnet through Aperture's own
@@ -198,8 +199,9 @@ must stay that way.
 
 ## From clone to a cast ballot
 
-On **Sepolia**. It cannot be done on mainnet: no ballot identity is deployed
-there, so a ballot sent to a mainnet ballot address is lost.
+These steps deploy **your own** contracts, so run them on **Sepolia** — the
+faucet is free and a mistake costs nothing. The same sequence has been run on
+mainnet against the contracts above; see `docs/DEPLOYMENTS.md` for every hash.
 
 Starknet fees are STRK-denominated, not ETH. Accounts are contracts, so you fund
 the counterfactual address *between* `account create` and `account deploy`.
@@ -210,9 +212,13 @@ sncast account create --name aperture-sepolia --url "$STARKNET_RPC_URL_SEPOLIA_S
 #    fund the printed address, then:
 sncast account deploy --name aperture-sepolia --url "$STARKNET_RPC_URL_SEPOLIA_SNCAST"
 
-# 2. Your own registry and anonymizer. Idempotent, so a crashed run resumes.
-#    Verifies the ballot domain against an independent derivation BEFORE the
+# 2. Your own multisig, registry and anonymizer. Idempotent, so a crashed run
+#    resumes. Deploys the multisig FIRST, because the registry fixes it as
+#    tally_operator at construction and can never be told a different one, and
+#    verifies the ballot domain against an independent derivation BEFORE the
 #    anonymizer goes out, because its registry pointer is write-once.
+#    Writes the three addresses into .env, which is where every step below
+#    reads them from.
 node scripts/deploy.ts sepolia --wait
 
 # 3. A proposal, its three ballot identities, and their viewing keys.
@@ -235,7 +241,16 @@ node services/tally/src/probe-ballots.ts 1
 node services/tally/src/index.ts 1
 node services/tally/src/index.ts 1 --finalize
 
-# 7. Return what is left in the ballot identities once the window has closed
+# 7. Check the published tally against an independent count, including the
+#    commitment to the exact set of ballots it counted
+node services/tally/src/verify-tally.ts 1
+
+# 8. Give each voter their stake back. A flat pool fee per note, so refunding a
+#    small ballot costs more than it returns — it says so and skips unless
+#    --force-uneconomic.
+node services/tally/src/refund-lifecycle.ts 1
+
+# 9. Return what is left in the ballot identities once the window has closed
 node scripts/sweep-ballot-accounts.ts 1
 ```
 

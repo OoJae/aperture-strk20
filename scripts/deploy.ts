@@ -359,14 +359,50 @@ async function main(): Promise<number> {
     console.log(`5. Anonymizer already deployed: ${state.anonymizer}`);
   }
 
-  console.log(`\nRecorded in deployments/${network}.json:`);
+  console.log(`\nRecorded in ${statePath(network)}:`);
   console.log(`  multisig    ${state.multisig}`);
   console.log(`  registry    ${state.registry}`);
   console.log(`  anonymizer  ${state.anonymizer}`);
   console.log(`  domain      ${state.ballotDomain}`);
+
+  // Written into .env as well as the state file.
+  //
+  // Every step after this one — create-proposal, deploy-ballot-accounts,
+  // register-ballots, cast-vote — reads the addresses from .env, and nothing
+  // used to put them there. A first-time follower deployed their own contracts
+  // and then hit "Missing required environment variables" with no indication
+  // that the run they had just done was supposed to supply them.
+  const envPath = resolve(ROOT, ".env");
+  const suffix = network === "sepolia" ? "_SEPOLIA" : "";
+  const assignments: Array<[string, string]> = [
+    [`APERTURE_REGISTRY_ADDRESS${suffix}`, state.registry!],
+    [`APERTURE_ANONYMIZER_ADDRESS${suffix}`, state.anonymizer!],
+    [`APERTURE_MULTISIG_ADDRESS${suffix}`, state.multisig!],
+  ];
+  let envFile = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
+  const changed: string[] = [];
+  for (const [name, value] of assignments) {
+    const line = `${name}=${value}`;
+    const pattern = new RegExp(`^${name}=.*$`, "m");
+    if (pattern.test(envFile)) {
+      const before = envFile;
+      envFile = envFile.replace(pattern, line);
+      if (envFile !== before) changed.push(name);
+    } else {
+      envFile += `${envFile.endsWith("\n") || envFile === "" ? "" : "\n"}${line}\n`;
+      changed.push(name);
+    }
+  }
+  writeFileSync(envPath, envFile);
   console.log(
-    `\nNext: copy these into packages/strk20-governance/src/deployments.ts, ` +
-      `then \`pnpm sync\`.`,
+    `\nWritten into .env: ${changed.length ? changed.join(", ") : "(already current)"}`,
+  );
+  console.log(
+    `\nNext: node scripts/create-proposal.ts "ipfs://your-proposal" --lead 12 --span 75 --cap 3`,
+  );
+  console.log(
+    `To make these the addresses the demo and the manifest describe, also copy\n` +
+      `them into packages/strk20-governance/src/deployments.ts and run \`pnpm sync\`.`,
   );
   return 0;
 }

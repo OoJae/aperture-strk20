@@ -43,6 +43,7 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     secret: false,
     group: "RPC",
     description: "Mainnet RPC. Used when the _SNCAST variant is unset.",
+    example: "https://starknet-rpc.publicnode.com",
   },
   {
     name: "STARKNET_RPC_URL_SNCAST",
@@ -92,7 +93,7 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
       "answering a real sync request on 2026-08-23 — see " +
       "docs/evidence/2026-08-23-indexer-probe.md. Must be https on mainnet: it " +
       "receives a viewing key in cleartext.",
-    example: "https://discovery-service.alpha-sepolia.sw-dev.io",
+    example: "https://discovery-service.alpha-mainnet.sw-dev.io",
   },
   {
     name: "PROVING_SERVICE_URL",
@@ -102,7 +103,7 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     description:
       "Proving service. Answers /health on both networks; that is not the same " +
       "as having produced a proof.",
-    example: "https://transaction-prover.alpha-sepolia.sw-dev.io",
+    example: "https://transaction-prover.alpha-mainnet.sw-dev.io",
   },
 
   {
@@ -285,6 +286,7 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     secret: false,
     group: "Services",
     description: "Sepolia discovery service. A mainnet pool read against this fails as \"Contract not found\".",
+    example: "https://discovery-service.alpha-sepolia.sw-dev.io",
   },
   {
     name: "PROVING_SERVICE_URL_SEPOLIA",
@@ -292,6 +294,7 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     secret: false,
     group: "Services",
     description: "Sepolia proving service.",
+    example: "https://transaction-prover.alpha-sepolia.sw-dev.io",
   },
   {
     name: "TALLY_OPERATOR_ADDRESS_SEPOLIA",
