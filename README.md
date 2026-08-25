@@ -207,10 +207,19 @@ Starknet fees are STRK-denominated, not ETH. Accounts are contracts, so you fund
 the counterfactual address *between* `account create` and `account deploy`.
 
 ```sh
+# 0. The DAO's own keys. Three values that must hang together — the public key
+#    is the Stark public half of the signing key, and the viewing seed is a
+#    separate scalar because viewing keys go to an indexer in cleartext and
+#    signing keys must not. Written to .env; nothing is sent.
+node scripts/new-dao-keys.ts
+
 # 1. An account, funded at https://faucet.starknet.io
 sncast account create --name aperture-sepolia --url "$STARKNET_RPC_URL_SEPOLIA_SNCAST"
 #    fund the printed address, then:
 sncast account deploy --name aperture-sepolia --url "$STARKNET_RPC_URL_SEPOLIA_SNCAST"
+#    sncast keeps its keys in ~/.starknet_accounts; every script here reads the
+#    operator from .env, so bridge the two:
+node scripts/import-sncast-account.ts aperture-sepolia
 
 # 2. Your own multisig, registry and anonymizer. Idempotent, so a crashed run
 #    resumes. Deploys the multisig FIRST, because the registry fixes it as
