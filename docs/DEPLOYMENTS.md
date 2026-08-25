@@ -109,51 +109,82 @@ instructive ways:
   the fee was never the binding constraint. An account must also cover the
   resource-bound *ceiling* or validation refuses the transaction before it runs.
 
-## Mainnet, v2
+## Mainnet, v3
+
+| | Address |
+|---|---|
+| `ProposalRegistry` (v3) | `0x05fe6b3b4755184eccd1efbcaac3ba647bbaf578a8ff7fbf31602aee83d0e7c5` |
+| `GovernanceAnonymizer` (v3) | `0x01d66b83171db42b8c1bfda02d30149a4888a80e7cb6f84da9837943940df156` |
+| `TreasuryMultisig` (tally_operator) | `0x05e59931f2b0ee69617418d5053de782b0b38a5a72e5d414d65e2a67adecfee8` |
+| ballot domain | `0x324d800211dce4b295e62c502f3dd3da520402fa973a0ed0ea6a88b4e1cb9e2` |
+
+Deployed 2026-08-25 for **43.87 STRK**, against a ~40 estimate. Only two classes
+were declared: the anonymizer's code is unchanged from v2, so its class hash is
+byte-identical and already on chain. The multisig had to be deployed *before* the
+registry, which fixes `tally_operator` at construction and can never be told a
+different one.
+
+The domain check earned its keep on the first attempt. A stale state file
+survived a blocked command, so the run skipped the registry as already deployed,
+compared the new derivation against the **old v2 registry**, and stopped —
+before the anonymizer, whose registry pointer is write-once.
+
+### The lifecycle, proposal 1
+
+Window `13843905 .. 13844788`. Timelock 1800 blocks.
+
+| | |
+|---|---|
+| create | `0xfbd8378d…` |
+| shield 5 STRK | `0x73305b56…` |
+| **cast (private)** | `0x3c03b8a0…` |
+| **finalize** (via multisig) | `0x601e2c8b…` |
+| announce | `0x1288aa45…` |
+| **authorize** (1800 blocks later) | `0x7c34cb22…` |
+| register | `0x144fdb94…` |
+| claim | `0x500f21db…` |
+| **refund** | `0x66fc98d1…` |
+
+Published: 5 STRK for, `counted_through` 13844788 — equal to `end_block`, which
+`finalize` asserts — provenance `BallotDerived`, and `ballot_commitment`
+`0x715fb9e7…`. `verify-tally` recounts from the chain and reproduces that felt,
+before the refund and again after it.
+
+Afterwards the registry's `authorized` and the anonymizer's `spent` both read
+1 STRK, and `outstanding` and `unattached` are both zero.
+
+### What v3 adds, and what it does not
+
+**A tally bound to a set of ballots.** The commitment makes a disagreement
+locatable — a specific claim about a specific set, rather than a suspicion about
+a total. It does not prove the sum is correct: nothing on chain recomputes
+anything, and an operator who counts wrong and commits to their wrong set gets a
+self-consistent pair. Checking needs the viewing keys, so only someone the DAO
+already trusts can do it.
+
+**A treasury no single key moves.** `tally_operator` is a 2-of-3 multisig behind
+an 1800-block timelock. `finalize` and both licence calls route through it —
+submit, confirm, confirm, execute. The announcement sat public and unusable for
+roughly an hour before it could be registered. But all three signing keys are the
+maintainer's, so this is the machinery for shared custody rather than shared
+custody itself. A quorum can add real co-signers without redeploying.
+
+**Refunds that work and do not pay for themselves.** 5 STRK went back to the
+voter. A pool transaction is a flat 6 STRK, so that refund cost more than it
+returned; `--force-uneconomic` exists because that is a property of settling one
+note at a time on this pool. Batching is the fix and is not built.
+
+## Mainnet, v2 (superseded)
 
 | | Address |
 |---|---|
 | `ProposalRegistry` (v2) | `0x02994d8a2b9a78d7c6c3d49696a22ec2010ffa120da09481ed1e5065e770e989` |
 | `GovernanceAnonymizer` (v2) | `0x01379a8daf18dfbb24b6ec80feb846b6445692090ab34ba0b286d49d1c04e1c5` |
-| ballot domain | `0x6e0f51686460107fce8af040705544c0f8f0d27c5dd5c1f463dc9808605669e` |
 
-Deployed 2026-08-24. The ballot domain was verified against an independent
-derivation **before** the anonymizer went out, because its registry pointer is
-write-once. The OpenZeppelin ballot account class was confirmed declared on
-mainnet first — a registry constructed with a class that does not exist there
-would publish three addresses no account could ever be deployed at.
-
-### The lifecycle, proposal 1
-
-Window `13798033 .. 13799084`.
-
-| | |
-|---|---|
-| create | `0x4f299f25…` |
-| shield 5 STRK | `0xd3afbc3d…` block 13798108 |
-| **cast (private)** | `0x133b6a35…` block **13798132** |
-| finalize | `0x61ae84ef…` block 13799264 |
-| licence | `0x41571a35…` block 13799320 |
-| register | `0xc64f28b2…` block 13802692 |
-| **claim** | `0x1174d989…` block 13802714 |
-
-Published: 5 STRK for, `counted_through` 13799084 — equal to `end_block`, which
-`finalize` asserts — provenance `BallotDerived`, `has_passed` true. Afterwards
-the registry's `authorized` and the anonymizer's `spent` both read 1 STRK, and
-`outstanding` and `unattached` are both zero.
-
-### A separate account touches the pool
-
-`0x6c5d4882…`. The original mainnet operator is registered with the pool under a
-viewing key that is in none of our env files, and the pool binds an address to
-one **write-once** — so that account can never spend or read a shielded note
-again. All ten historical mainnet transactions have ten different senders, none
-pool-registered: they are relayers, so there was no second identity of ours to
-fall back on.
-
-The roles are split as a result, and the split is the more honest model. Writing
-a tally is an identity the registry names and fixes at construction. Touching
-the pool is whoever holds a registered viewing key.
+Complete while it stood: 22 transactions, a sealed ballot cast inside its window,
+and the first claimed payout on any network. Replaced because it could not be
+extended — `tally_operator` had no setter and `finalize` had nowhere to put a
+commitment. Holds no funds.
 
 ## Sepolia
 

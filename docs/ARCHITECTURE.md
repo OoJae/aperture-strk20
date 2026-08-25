@@ -1,6 +1,6 @@
 # Architecture
 
-Status, 2026-08-24. **v2 runs on both networks, end to end.** On mainnet and on
+Status, 2026-08-25. **v3 runs on mainnet, end to end; Sepolia runs v2.** On mainnet and on
 Sepolia: a sealed ballot cast inside its voting window, counted, and finalized
 against the block the contract demands, and a treasury payout registered and
 claimed. v1 is superseded on both and holds 34.5 STRK nobody can recover.
@@ -123,10 +123,12 @@ already lifted.
 
 ## Known limits
 
-**Refunds are computed but cannot be executed.** Returning stake is a private
-transfer, which needs a proof, which needs a proving service — and none is
-published. The worker builds the refund queue and refuses to pretend it can pay
-it. See `docs/TRUST_MODEL.md`.
+**Refunds work, and cost more than they return.** A refund is a private transfer
+back to the note's sender, and the worker pays them. But a pool transaction is a
+flat 6 STRK on mainnet, so settling a 5 STRK ballot destroys more value than it
+returns — printed per entry, and skipped unless `--force-uneconomic`. Batching a
+proposal's refunds into one pool transaction is the fix and is not built. See
+`docs/TRUST_MODEL.md`.
 
 **Delegation is cut from v1.** Sub-accounts were renamed to shadow accounts, no
 anonymizer for them is deployed on any network, and the wallet route does not

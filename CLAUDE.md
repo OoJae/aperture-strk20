@@ -163,12 +163,14 @@ package · `apps/web` demo dapp · `services/tally` server-side tally worker ·
 
 ## Where we are
 
-Updated 2026-08-24, after the mainnet lifecycle completed.
+Updated 2026-08-25, after the v3 mainnet lifecycle completed.
 
-**Mainnet runs v2, end to end.** Registry `0x02994d8a…`, anonymizer
-`0x01379a8d…`. A sealed ballot cast **inside** its window, finalized with
-`counted_through == end_block` and `BallotDerived`, and a payout registered and
-**claimed**. 22 transactions in `strk20.json`, 11 through our own contracts. The
+**Mainnet runs v3, end to end.** Registry `0x05fe6b3b…`, anonymizer
+`0x01d66b83…`, treasury multisig `0x05e59931…`. A sealed ballot cast **inside** its window, finalized with
+`counted_through == end_block`, `BallotDerived` and a published ballot-set
+commitment that `verify-tally` reproduces; a payout announced, held 1800 blocks
+by the timelock, licensed by a quorum, registered and **claimed**; and the stake
+**refunded**. 34 transactions in `strk20.json`, 17 through our own contracts. The
 demo is deployed with no login wall and serves these contracts.
 
 **Sepolia runs the same v2 lifecycle.** Registry
@@ -181,16 +183,22 @@ hashes.
 
 What is not done:
 
-- **Refunds** are computed but have no payee recorded, and paying one needs a
-  private transfer. Voting is a one-way stake until this changes.
+- **Refunds cost more than they return, one note at a time.** They work — 5 STRK
+  went back to a voter on each network — but a pool transaction is a flat 6 STRK
+  on mainnet, so settling a 5 STRK ballot destroys more than it returns.
+  `--force-uneconomic` exists because that is a real property of this pool, not a
+  bug. Batching refunds into one pool transaction is the fix and is not built.
 - **No demo video.**
-- **The tally is checkable, not provable.** `finalize` publishes the block it
-  counted through, so a second party with the viewing keys can re-run the count
-  and compare. Nothing proves the published sum is the correct sum of the
-  ballots actually cast.
-- **One key holds the treasury.** The tally operator is the only address that
-  can license a payout, and it chooses the commitment, so it chooses the
-  recipient — bounded by the proposal's cap, and nothing else.
+- **The tally is checkable, not provable — still.** v3 publishes a commitment to
+  the ballot set as well as the pin, and `verify-tally` reproduces it. That
+  narrows the claim and makes a disagreement locatable, but an operator who
+  counts wrong and commits to their wrong set still passes. Only someone trusted
+  with the viewing keys can check at all.
+- **The multisig is a mechanism, not a distribution of trust.** v3's
+  tally_operator is a 2-of-3 TreasuryMultisig behind an 1800-block timelock, and
+  a single key genuinely cannot license a payout any more. But all three keys are
+  the maintainer's, so what exists is the machinery for shared custody rather
+  than shared custody. A quorum can add real co-signers without redeploying.
 - **34.5 STRK is permanently locked**, 14 in the v1 mainnet anonymizer and 20.5
   in the v1 Sepolia one. Both are the same failure — a payout preimage displayed
   once and never stored, against a contract with no sweep. See

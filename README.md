@@ -107,8 +107,8 @@ keys, so it can see individual ballots and is trusted to publish only the
 aggregate, and that aggregate is not independently verifiable. The discovery
 service can under-report, and a tally computed from an incomplete read is wrong
 in a way nothing on-chain reveals — it is also handed a viewing key in
-cleartext. Refunds are computed but cannot be executed, and have no payee
-recorded even in principle. These are real assumptions, not technicalities.
+cleartext. Refunds execute, but cost a flat pool fee per note, so settling a small ballot
+destroys more than it returns even in principle. These are real assumptions, not technicalities.
 
 The full accounting is in [`docs/TRUST_MODEL.md`](docs/TRUST_MODEL.md). It is
 worth reading before trusting anything here.

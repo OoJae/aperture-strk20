@@ -61,11 +61,15 @@ test("scoring transactions occupy a strict prefix", () => {
   }
 });
 
-test("contracts are the active network's, live pair first", () => {
+test("contracts are the active network's, live set first", () => {
   const deployment = DEPLOYMENTS[ACTIVE];
   assert.deepEqual(manifest.contracts, [
     deployment.registry,
     deployment.anonymizer,
+    // The multisig is one of ours too: it is the registry's tally_operator, and
+    // a routed finalize emits from both. Omitting it made a call that moved the
+    // treasury look like it touched nothing we wrote.
+    ...(deployment.multisig ? [deployment.multisig] : []),
     ...(deployment.superseded ?? []).map((s) => s.address),
   ]);
 });

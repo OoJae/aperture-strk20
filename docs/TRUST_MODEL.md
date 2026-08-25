@@ -116,7 +116,11 @@ to execute raises an error rather than half-working, because an operator who
 cannot pay should learn that immediately, not after telling voters their stake
 was returned.
 
-Treat voting as a one-way stake until this line says otherwise.
+Refunds now execute — 5 STRK has gone back to a voter on each network — so
+voting is no longer a one-way stake. What remains is economics rather than
+capability: one pool transaction per note at a flat 6 STRK on mainnet means
+refunding a small ballot destroys more than it returns, and nothing batches them
+yet.
 
 ## The v2 path
 
