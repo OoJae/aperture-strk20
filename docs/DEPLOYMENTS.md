@@ -1,8 +1,11 @@
 # Deployments
 
-## Mainnet
+## Mainnet, v1 (superseded)
 
-Deployed 2026-08-17. **These are the addresses the demo talks to.**
+Deployed 2026-08-17. **Superseded.** These are the v1 addresses; the demo talks
+to the v3 contracts under [Mainnet, v3](#mainnet-v3) below. They are kept here
+because ten recorded transactions belong to this generation — six ran through
+the anonymizer below, and the other four touch only the pool.
 
 | | Address |
 |---|---|
@@ -15,14 +18,18 @@ anonymizer `0x05c37265083181d3669f096b0a594ead9725b75ff4a413dae007c8ddab818a37` 
 identical to Sepolia's, since a class hash is derived from the code itself.
 
 Deploying these needed no prover and no indexer; they are ordinary contract
-deployments, which is why mainnet was reachable while the proving endpoints
-remain unpublished.
+deployments, which is why mainnet was reachable long before either proving
+endpoint had been exercised. Both are published now and ship as defaults in
+`.env.example` — see **Configuration, not constants** at the end of this file.
 
 ### Treasury payouts, executed on mainnet
 
-Six transactions ran the full payout through Aperture's own anonymizer. Each
-withdrew from the pool to `GovernanceAnonymizer`, called its `privacy_invoke`,
-and parked the value against a commitment that only a preimage can open. Each
+Six transactions ran the **register leg** of a payout through Aperture's own
+anonymizer, 2 STRK each. Each withdrew from the pool to `GovernanceAnonymizer`,
+called its `privacy_invoke`, and parked the value against a commitment that only
+a preimage can open. **None of the six was ever claimed** — the preimages were
+displayed once and never stored, so those 12 STRK are part of the 14 the v1
+contract still holds and nobody can reach. Each
 emits `PayoutRegistered`.
 
 | Block | Hash |
@@ -45,19 +52,22 @@ did.** It moved treasury value into the anonymizer without invoking it, so it
 emits zero events from any contract of ours — one `starknet_getTransactionReceipt`
 call falsifies the old claim. It is listed here, and on `/proof`, as what it is.
 
-That transaction is also how 14 STRK became permanently locked. See
+That transaction locked 1 STRK of the 14 the v1 anonymizer holds; twelve more
+are the six 2 STRK escrows above, whose preimages were displayed once and never
+stored. The contract's STRK balance still reads exactly 14. See
 `docs/TRUST_MODEL.md`: value arriving without a commitment registered in the
 same pool transaction can never be moved again, by anyone.
 
 A hash counts, by this project's own rule, only if it ran through one of our
-contracts; merely touching the pool is not integration depth. Four of the ten
-hashes in `strk20.json` fail that test — the three earliest are shield, private
-transfer and unshield, and the fourth is the funding transaction above. They are
+contracts; merely touching the pool is not integration depth. Seventeen of the
+thirty-four hashes in `strk20.json` fail that test — the pool-only shields,
+private transfers and unshield, the funding transaction above, the sealed
+ballots themselves, and the ballot-identity viewing-key registrations. They are
 kept in the manifest because a record that shows only the flattering half is not
 a record. `node scripts/verify-tx.ts --all` reports both rules separately and
 never conflates them.
 
-### The mainnet tally is not a counted result
+### The v1 mainnet tally (proposal 2) was not a counted result
 
 Mainnet proposal 2 is finalized with `for_weight: 900, against_weight: 100,
 abstain_weight: 0` and `has_passed: true`. **Those numbers were entered by the
@@ -69,13 +79,19 @@ returns zero for each, and no note was ever sent to one. The units give it away
 It exists because `register_payout` asserts `registry.has_passed(proposal_id)`,
 so a passed proposal is a precondition for demonstrating a mainnet payout at all.
 
-The tally that *was* produced by counted ballots is on Sepolia: proposal 1,
-`for_weight: 5000000000000000000`, against 0, abstain 0.
+Tallies that *were* produced by counted ballots came later, and exist on both
+networks: mainnet proposal 1 under v2 (`0x61ae84ef…`, counted through 13799084)
+and again under v3 (`0x601e2c8b…`, counted through 13844788), both
+`BallotDerived`. Sepolia's counted tally is proposal 2 under v2; its proposal 1
+figure of 5 STRK is the late-ballot result described below, and re-counting it
+returns zero — so it is not an example of a counted result.
 
-No file in this repository disclosed any of this before 2026-08-23. The demo now
-states it on the page that renders the number.
+No file in this repository disclosed any of this before 2026-08-23. Nothing
+renders that number now: the demo serves the v3 registry, whose one proposal
+carries a `BallotDerived` tally. This record is where the v1 figure is
+disclosed.
 
-### Not yet reproduced on mainnet
+### Not yet reproduced on mainnet — superseded 2026-08-24, see below
 
 The sealed-vote lifecycle. Standing up a ballot identity means registering its
 viewing key with the pool, which is a pool transaction needing a proof. The
@@ -182,7 +198,7 @@ note at a time on this pool. Batching is the fix and is not built.
 | `GovernanceAnonymizer` (v2) | `0x01379a8daf18dfbb24b6ec80feb846b6445692090ab34ba0b286d49d1c04e1c5` |
 
 Complete while it stood: 22 transactions, a sealed ballot cast inside its window,
-and the first claimed payout on any network. Replaced because it could not be
+and the first claimed payout on mainnet — Sepolia's came ten hours earlier. Replaced because it could not be
 extended — `tally_operator` had no setter and `finalize` had nowhere to put a
 commitment. Holds no funds.
 
@@ -201,7 +217,7 @@ Deployed 2026-08-23. The domain was verified against an independent derivation
 **before** the anonymizer went out, because the anonymizer's registry pointer is
 write-once and a wrong one is permanent.
 
-Four contracts are superseded; `packages/strk20-governance/src/deployments.ts`
+Five Sepolia contracts are superseded; `packages/strk20-governance/src/deployments.ts`
 records each with its reason. Two are worth repeating here:
 
 - The **v1 anonymizer** at `0x00533fed…` holds **20.5 STRK nobody can recover.**
@@ -241,8 +257,9 @@ the close and said the count was sound; both were generous, and the working is i
 `docs/evidence/2026-08-23-late-ballot.md`. The old result stays on the record with
 that note rather than being quietly dropped.
 
-v2 makes the valid pin unique per proposal, so anyone can re-run the count against
-the same state and compare. It does not make the sum provable. It makes the claim
+v2 makes the valid pin unique per proposal, so a second party holding the same
+viewing keys can re-run the count against the same state and compare. Not
+"anyone": counting needs the ballot identities' viewing keys. It does not make the sum provable. It makes the claim
 checkable, which it was not before.
 
 ### A payout registered **and claimed**

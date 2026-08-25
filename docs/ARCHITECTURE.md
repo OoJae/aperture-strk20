@@ -29,10 +29,10 @@ Two properties fall out of this for free:
 After the window closes, the tally service sums each choice's notes and posts
 only the aggregate on-chain, along with the block it counted through.
 
-Refunding the stake afterwards is the design, and it does not work — see **Known
-limits**. This paragraph used to end "Ballots are then refunded by private
-transfer", stated as fact, two sections above the section saying it was
-impossible.
+Refunding the stake afterwards is the design, and it works — see **Known
+limits**, where the problem is what it costs rather than whether it happens.
+This paragraph used to say refunds were impossible, two sections above the
+section that said so; 5 STRK has since gone back to a voter on each network.
 
 ## Components
 
@@ -40,9 +40,9 @@ impossible.
 |---|---|---|
 | `ProposalRegistry` | `contracts/src/proposal_registry.cairo` | Proposals, windows, finalized aggregate tallies. Public by design. |
 | `GovernanceAnonymizer` | `contracts/src/governance_anonymizer.cairo` | Treasury payouts through the pool's `privacy_invoke` entry point. |
-| Tally worker | `services/tally` | Holds the ballot viewing keys, sums ballot notes, posts the aggregate. Computes refunds; cannot pay them. |
+| Tally worker | `services/tally` | Holds the ballot viewing keys, sums ballot notes, posts the aggregate. Computes and pays refunds, though one can cost more than it returns. |
 | Shared package | `packages/strk20-governance` | Ballot-identity derivation and cast/tally/refund helpers. |
-| Demo dapp | `apps/web` | Reads proposals, ballot identities and tallies with no wallet at all; connects a wallet only for the treasury-payout path. **Casting a ballot is not in the browser** — it is `services/tally/src/cast-vote.ts`. |
+| Demo dapp | `apps/web` | Reads proposals, ballot identities and tallies with no wallet at all; connects no wallet at all — under v3 the treasury path is a record derived from the ledger, because a browser wallet is not the registry's 2-of-3 tally_operator. **Casting a ballot is not in the browser** — it is `services/tally/src/cast-vote.ts`. |
 
 ## Protocol constraints that shaped the design
 
@@ -67,11 +67,14 @@ These come from the STRK20 protocol and are not ours to negotiate:
 
 ## Two routes into the pool
 
-Aperture uses both, deliberately.
+The pool can be reached two ways, and Aperture's design depends on the
+difference. Only one of them is code in this repository: the demo dapp is not
+the wallet route, it is a reader that connects no wallet at all.
 
-- **Wallet route** — the browser dapp. The user's wallet holds the keys and
-  performs shielding and ballot transfers. No viewing key ever reaches the
-  frontend.
+- **Wallet route** — any wallet that speaks STRK20, outside this repo. The
+  user's wallet holds the keys and performs shielding and ballot transfers. The
+  demo dapp does neither: it reads the chain with no wallet connected at all. No
+  viewing key ever reaches the frontend.
 - **SDK route** — the tally worker. Holds its own keys server-side, and is the
   only route that can reach note discovery and sub-accounts.
 
@@ -79,7 +82,9 @@ Aperture uses both, deliberately.
 
 Counting is a **read**, and that is what makes it possible. Discovery needs an
 *indexer*; the heavyweight prover in the STRK20 stack is only needed to write.
-So the worker never runs one.
+So the counting path never runs one. The same worker does reach a proving
+service for the writes it makes — casting, shielding, payouts and refunds — but
+never to count.
 
 For each choice it derives the ballot identity from `DAO_MASTER_PUBLIC_KEY` and
 its viewing key from `DAO_BALLOT_VIEWING_SEED`, reads the notes that identity
@@ -100,19 +105,23 @@ Two details are load-bearing rather than incidental:
   call, `discoverNotes`, returns only unspent notes and silently omits spent
   ones. For a balance that is right; for a tally it would mean a ballot identity
   that ever moved a note had that vote quietly vanish from the count.
-- Every read is **pinned to one settled block hash**, ten blocks behind the
-  head. Against a moving tag the set can shift between pages. Pinning also gives
-  reorg detection for free, since a hash that has been reorged out stops
-  resolving. Anyone can re-run the count against the same hash and get the same
-  answer.
+- Every read is **pinned to one settled block** — the proposal's own closing
+  block, which the contract also stores, so the pin is not the operator's to
+  choose. Against a moving tag the set can shift between pages. Pinning also
+  gives reorg detection for free, since a block that has been reorged out stops
+  resolving. A second party holding the same viewing keys can re-run the count
+  against that pin and get the same answer; without those keys nobody can count
+  at all.
 
 Aggregation itself is a pure function in `packages/strk20-governance`, separate
 from anything that touches the network, and deduplicates by note id — paginated
 reads can legitimately return a note twice, and double-counting a vote would be
 silent.
 
-The indexer URL is configuration, never a constant, and no endpoint is baked
-into this repository.
+The indexer URL is configuration rather than something compiled in: it is read
+from the environment, and `.env.example` plus `deployments.ts` carry the public
+STRK20 discovery services as defaults so a fresh clone works. Point it elsewhere
+by setting it; nothing pins the count to those endpoints.
 
 This section used to say no discovery endpoint had been published for either
 network, which is what the project's own notes claimed and what it believed

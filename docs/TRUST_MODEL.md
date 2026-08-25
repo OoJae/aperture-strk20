@@ -4,7 +4,7 @@ Aperture is a privacy tool, so the honest statement of what it does **not** hide
 matters as much as what it does. This page is the reference; nothing in the
 README or the demo should claim more than what is written here.
 
-Status: v1, describing what is deployed today. This is the reference for what
+Status: v3 on mainnet and v2 on Sepolia, describing what is deployed today. This is the reference for what
 Aperture claims; the README and the demo must not claim more than it does.
 
 ## Private
@@ -24,18 +24,27 @@ Aperture claims; the README and the demo must not claim more than it does.
 - **The amount of a treasury payout claimed as an open note.** Open notes carry
   plaintext amounts. A payout hides *who* was paid, not *how much*.
 
-## Trusted in v1
+## Trusted in v3
 
 - **The tally operator.** It derives every ballot identity's viewing key from
   the DAO master secret, so it can see individual ballots. It is trusted to
   publish only the aggregate.
 - **The discovery service.** The count is only as complete as the indexer the
-  operator points at. Reads are pinned to a settled block hash so anyone can
-  re-run the same count and compare, but a dishonest or broken indexer could
-  under-report. The endpoint is configuration; no default is shipped.
-- **The tally operator again, over the treasury.** In v2 it is also the only
-  address that can commit a passed proposal's budget to a specific payout, via
-  `authorize_payout` on the registry. It cannot exceed the `payout_cap` the
+  operator points at. Reads are pinned to the proposal's own closing block, so a
+  second party holding the same viewing keys can re-run the count and compare —
+  not "anyone", since counting means discovering the notes each ballot identity
+  received, which needs that identity's viewing key. A dishonest or broken
+  indexer could still under-report. The endpoint is configuration rather than a
+  constant, and `.env.example` ships the public STRK20 discovery services as
+  defaults so a fresh clone works; point it elsewhere by setting it.
+- **The tally operator again, over the treasury.** It is still the only address
+  that can commit a passed proposal's budget to a specific payout, via
+  `announce_payout` and then `authorize_payout` on the registry. Under v3 that
+  address is a 2-of-3 `TreasuryMultisig` and the two legs are separated by an
+  1800-block timelock, so a single key cannot license a payout and nothing can be
+  licensed without the DAO having had roughly an hour to watch it happen. That
+  narrows the assumption; it does not remove it, and all three keys currently
+  belong to this project's maintainer. It cannot exceed the `payout_cap` the
   proposal was created with, and it cannot pay against a proposal that did not
   pass — but within those bounds it chooses the commitment, and the commitment
   is what determines who can claim. So the operator picks the recipient.
@@ -46,11 +55,29 @@ Aperture claims; the README and the demo must not claim more than it does.
   and the alternative is worse: without this, anyone at all could burn a passed
   proposal's cap to zero permanently for the price of two pool fees. See
   `docs/evidence/2026-08-23-cap-burning.md`.
-- **Refund honesty** — and see below, because in this version it is worse than a
-  trust assumption.
+- **Refund honesty.** Refunds are operator-run private transfers rather than
+  contract-enforced escrow, so the operator is trusted to send them. See below:
+  they now execute, which makes this a trust assumption rather than a gap.
 
 These are real assumptions, not technicalities. A DAO deploying Aperture as it
 stands is trusting whoever runs the tally service.
+
+## Value we locked up and cannot recover
+
+**34.5 STRK is permanently locked**, and it belongs here rather than in a
+footnote because it is the most expensive thing this project has done.
+
+- **14 STRK** in the v1 mainnet anonymizer.
+- **20.5 STRK** in the v1 Sepolia one.
+
+Both are the same failure, made twice: a payout preimage was displayed once and
+never stored, against a contract with no sweep. The commitment can only be
+opened by its preimage, so the value is not stolen or stuck pending — it is
+unreachable by anyone, including us, forever.
+
+What changed: tickets are now written to disk before anything is submitted, so a
+run that dies after registering can still open what it escrowed. That is what
+stops a third.
 
 ## Aperture is not receipt-free
 
@@ -84,9 +111,9 @@ over might already be void, is the best-known approach.
 ## The tally is not verifiable
 
 The operator publishes an aggregate and nothing proves it is the correct sum of
-the ballots actually cast. Reads are pinned to a settled block hash so a second
-party with the same viewing keys can re-run the count and compare, but that
-audits the operator against itself rather than against the chain.
+the ballots actually cast. Reads are pinned to the proposal's own closing block,
+so a second party with the same viewing keys can re-run the count and compare —
+but that audits the operator against itself rather than against the chain.
 
 Until v2 that claim was weaker than it sounded, because **nothing published
 which block the count was pinned to.** A tally's validity depends entirely on
@@ -100,46 +127,49 @@ provable; it makes the claim checkable, which it was not before.
 
 Systems that solve this — Helios, Belenios, MACI — publish either a homomorphic
 tally with a proof of correct decryption, or a ZK proof that the published
-result follows from the committed ballot set. A credible first step here would
-be publishing a commitment to the ballot set alongside the aggregate, so the
-claim becomes checkable in principle rather than taken on faith.
+result follows from the committed ballot set. The credible first step named here
+has been taken: v3's `finalize` publishes a commitment to the ballot set
+alongside the aggregate, and `verify-tally` recomputes it from an independent
+count. That makes a disagreement locatable rather than merely suspected. It does
+not make the sum provable — an operator who counts wrong and commits to their
+wrong set still passes, and only someone trusted with the viewing keys can check
+at all.
 
-## Refunds do not work in this version
+## Refunds work, and cost more than they return
 
-The design says staked vote weight is returned after a proposal closes. Today it
-is **computed but not paid**. Issuing a refund is a private transfer, which
-requires a proof, which requires a proving service — and no proving endpoint has
-been published for mainnet or Sepolia.
+The design says staked vote weight is returned after a proposal closes, and it
+is. A refund is a private transfer proved through the configured proving service;
+the worker builds the queue, reports exactly what is owed, and
+`services/tally/src/refund-lifecycle.ts` pays it, writing a receipt before it
+submits so a retry cannot double-pay.
 
-The worker builds the refund queue and reports exactly what is owed. Asking it
-to execute raises an error rather than half-working, because an operator who
-cannot pay should learn that immediately, not after telling voters their stake
-was returned.
+This section used to say refunds were computed but not paid, because no proving
+endpoint had been published. That was true when written and is not true now.
 
-Refunds now execute — 5 STRK has gone back to a voter on each network — so
+Refunds execute — 5 STRK has gone back to a voter on each network — so
 voting is no longer a one-way stake. What remains is economics rather than
 capability: one pool transaction per note at a flat 6 STRK on mainnet means
 refunding a small ballot destroys more than it returns, and nothing batches them
 yet.
 
-## The v2 path
+## Still ahead
 
 - Split the viewing key across a threshold set so no single operator sees
   ballots.
 - Move refunds into the anonymizer so they are contract-enforced rather than
   operator-promised.
-- Publish a commitment to the ballot set with the aggregate, so the tally can be
-  checked rather than trusted.
 - Add a re-voting or key-rotation mechanism, without which no amount of
   encryption buys coercion resistance.
-- Move payout authority off a single operator — a multisig, or a timelock long
-  enough for the DAO to see a licence issued before it can be registered. Today
-  one key chooses every recipient within the cap.
 
 Built since this list was written, and no longer pending: a quorum floor with a
 per-proposal raise (v1's `has_passed` compared for-weight against against-weight
 and nothing else, so a single ballot with no turnout unlocked a payout), a
-published counted-through block, and a per-proposal payout token and cap.
+published counted-through block, a per-proposal payout token and cap, a
+published commitment to the ballot set that `verify-tally` reproduces from an
+independent count, and payout authority moved off a single key — the
+`tally_operator` is a 2-of-3 `TreasuryMultisig` behind an 1800-block timelock.
+That last one is machinery rather than distributed trust while all three keys
+are the maintainer's; a quorum can add real co-signers without redeploying.
 
 ## Notes on the protocol itself
 

@@ -20,7 +20,7 @@ Built for the STRK20 Private Sprint, August 2026.
 | `TreasuryMultisig` (mainnet) | [`0x05e59931…adecfee8`](https://voyager.online/contract/0x05e59931f2b0ee69617418d5053de782b0b38a5a72e5d414d65e2a67adecfee8) |
 | STRK20 pool (mainnet) | [`0x040337b1…6ffe812a`](https://voyager.online/contract/0x040337b1af3c663e86e333bab5a4b28da8d4652a15a69beee2b677776ffe812a) |
 
-Six treasury payouts have been executed on mainnet through Aperture's own
+Eight treasury payouts have been executed on mainnet through Aperture's own
 anonymizer — the pool withdrew to `GovernanceAnonymizer`, called its
 `privacy_invoke`, and the contract parked the value against a commitment only a
 preimage can open. Hashes are in [`strk20.json`](strk20.json); Sepolia
@@ -46,12 +46,14 @@ See [`docs/evidence/2026-08-23-claim-leg-diagnosis.md`](docs/evidence/2026-08-23
 The complete sealed-vote lifecycle — three ballot identities deployed at the
 addresses the registry publishes, their viewing keys registered, a sealed ballot
 cast **inside its voting window**, counted, and the aggregate published on-chain
-along with the block it was counted through — runs on **Sepolia**, against v2.
+along with the block it was counted through — has run on **mainnet** against v2
+and again against v3, and on **Sepolia** against v2.
 
-Not yet on mainnet. This used to say the reason was an unpublished proving
-service; that was true when written and is not true now. Discovery and proving
-both work on both networks against configured endpoints. What remains is
-deploying v2 there and funding it.
+This section used to say "not yet on mainnet", and before that blamed an
+unpublished proving service. Both have been overtaken: discovery and proving
+work on both networks against configured endpoints, and v3's finalize also
+publishes a commitment to the exact ballot set it counted, which
+`verify-tally` reproduces from an independent count.
 
 ## The problem
 
@@ -65,8 +67,10 @@ On-chain governance leaks.
 - **Treasury payouts are doxxed and front-run.** Grant recipients and amounts
   are visible to anyone watching.
 
-Aperture removes the first and third outright, and raises the cost of the
-second. What it does *not* do is covered honestly below.
+Aperture removes the first outright, raises the cost of the second, and removes
+half of the third: a payout hides *who* was paid, never *how much*, because an
+open note carries a plaintext amount. What it does not do is covered honestly
+below.
 
 ## How it works
 
@@ -105,11 +109,16 @@ contract. Defeating a willing seller needs a mechanism this design does not have
 
 **Trusted today.** Three parties, not two. The tally operator holds the viewing
 keys, so it can see individual ballots and is trusted to publish only the
-aggregate, and that aggregate is not independently verifiable. The discovery
-service can under-report, and a tally computed from an incomplete read is wrong
-in a way nothing on-chain reveals — it is also handed a viewing key in
-cleartext. Refunds execute, but cost a flat pool fee per note, so settling a small ballot
-destroys more than it returns even in principle. These are real assumptions, not technicalities.
+aggregate. **Nothing proves that aggregate is the correct sum of the ballots
+actually cast.** v3 publishes a commitment to the exact ballot set counted, which
+makes the claim checkable rather than provable — and only checkable by someone
+who also holds the viewing keys, since an operator who counts wrong and commits
+to their wrong set still passes. The discovery service can under-report, and a tally computed from an
+incomplete read is wrong in a way nothing on-chain reveals — it is also handed a
+viewing key in cleartext. Refunds are operator-run private transfers rather than
+contract-enforced escrow, so the operator is trusted to send them; they execute,
+but a flat pool fee per note means settling a small ballot destroys more than it
+returns. These are real assumptions, not technicalities.
 
 The full accounting is in [`docs/TRUST_MODEL.md`](docs/TRUST_MODEL.md). It is
 worth reading before trusting anything here.
@@ -118,12 +127,13 @@ worth reading before trusting anything here.
 
 Named rather than hidden:
 
-- **No quorum.** `has_passed` compares for-weight against against-weight and
-  nothing else, so a single ballot with no turnout passes a proposal. The
-  constructor sets the anonymizer's registry immutably, so adding quorum means
-  redeploying both contracts; it is v2 scope rather than a patch.
+- **Quorum is a floor, not a mandate.** `has_passed` now requires turnout at or
+  above the proposal's quorum, and the registry refuses any quorum below its own
+  immutable `min_quorum` — but nothing compels a proposer to set one meaningfully
+  above that floor. This bullet used to read "no quorum", which stopped being
+  true at v2.
 - **Proposal metadata is one felt** (~31 bytes), which cannot hold an IPFS URI.
-- **No delegation, ranked choice, timelocks, or generic execution.** Aperture is
+- **No delegation, ranked choice, or generic execution.** Aperture is
   a privacy mechanism for governance, not a complete governance stack.
 
 ## Status
@@ -131,14 +141,14 @@ Named rather than hidden:
 | Piece | State |
 |---|---|
 | Cairo contracts | Implemented, <!--cairo-->96<!--/cairo--> `snforge` tests, deployed to mainnet and Sepolia |
-| Shared TS package | Implemented, <!--ts-->86<!--/ts--> tests — ballot derivation, viewing keys, aggregation |
-| Tally service | Implemented. Discovers notes, aggregates, publishes on-chain. Run against Sepolia |
+| Shared TS package | Implemented — ballot derivation, viewing keys, aggregation. <!--ts-->95<!--/ts--> TypeScript tests across the workspace |
+| Tally service | Implemented. Discovers notes, aggregates, publishes on-chain. Run against mainnet and Sepolia |
 | Demo dapp | Live on mainnet, no login |
-| Mainnet transactions | 22 in [`strk20.json`](strk20.json), 11 through our own contracts |
+| Mainnet transactions | 34 in [`strk20.json`](strk20.json), 17 through our own contracts |
 | Sealed-vote lifecycle | Run end to end on **mainnet and Sepolia** — cast inside the window, counted, finalized with the block it counted through. An earlier Sepolia ballot arrived 945 blocks late and is kept on the record with its correction |
-| Claiming a payout | Works on both networks. The mainnet claim is `0x1174d989…` |
-| Refunds | Computed, and undeliverable twice over: no prover, and no payee recorded |
-| Demo video | Not made |
+| Claiming a payout | Works on both networks. Two mainnet claims: `0x1174d989…` under v2 and `0x500f21db…` under v3 |
+| Refunds | Delivered on both networks — 5 STRK returned to the voter on each. Uneconomic one note at a time: a flat 6 STRK mainnet pool fee against a 5 STRK stake, and not yet batched |
+| Demo video | [2:37, on YouTube](https://youtu.be/rOHlgf17WqA) |
 
 ## Repository layout
 

@@ -21,8 +21,10 @@ things live.
    resolves to a version without the STRK20 API. Cairo toolchain: Scarb 2.20.0,
    Starknet Foundry 0.63.0, `snforge_std` 0.63.0. CI pins the same versions.
 5. **Build in public.** Commit small, push often, conventional commits. Keep
-   `strk20.json` current — append every mainnet hash the moment it lands, using
-   `node scripts/record-tx.ts <hash>`. Never batch this for later.
+   `strk20.json` current the moment a hash lands: `node scripts/record-tx.ts
+   <hash>` verifies it against the chain and prints a ledger entry to paste into
+   `packages/strk20-governance/src/deployments.ts`, then `pnpm sync` regenerates
+   the manifest. It does not write the manifest itself. Never batch this.
 6. **Honesty.** Never overclaim privacy. `docs/TRUST_MODEL.md` is the reference
    for what is private, what is public, and what is trusted; the README and demo
    must not claim more than it does.
@@ -102,10 +104,12 @@ Verified against the docs mirror and the reference implementations on
    with the transcript, in `docs/evidence/2026-08-23-indexer-probe.md`. Its
    Sepolia twin was returning `503 STORAGE_ERROR` at the same moment, which is
    the inverse of what seven files in this repo assert. The proving service
-   answers `/health` on both networks; that is **not** evidence it will produce
-   a proof, and until one is produced the mainnet lifecycle stays unproven. Do
-   not restate the old claim, and do not upgrade this one beyond what was
-   actually tested.
+   answers `/health` on both networks; that was **not** evidence it would
+   produce a proof, and this file said so until proofs were produced. They have
+   been: the mainnet lifecycle has since run end to end twice, and every sealed
+   ballot, claimed payout and refund in the ledger went through the mainnet
+   proving service. Both services remain intermittent rather than reliable — do
+   not upgrade that half beyond what has actually been observed.
 
 10. **Calldata placeholders are literal strings.** `"OPEN"`, `"${poolAddress}"`,
     and `"${openNoteIds[0]}"` are substituted by the wallet. Never normalize
@@ -171,9 +175,11 @@ Updated 2026-08-25, after the v3 mainnet lifecycle completed.
 commitment that `verify-tally` reproduces; a payout announced, held 1800 blocks
 by the timelock, licensed by a quorum, registered and **claimed**; and the stake
 **refunded**. 34 transactions in `strk20.json`, 17 through our own contracts. The
-demo is deployed with no login wall and serves these contracts.
+demo is deployed with no login wall and serves these contracts. The demo film
+is published at `https://youtu.be/rOHlgf17WqA` (2:37) and recorded in
+`strk20.json`.
 
-**Sepolia runs the same v2 lifecycle.** Registry
+**Sepolia runs the v2 lifecycle.** Registry
 `0x058b9e29…`, anonymizer `0x03986832…`. A sealed ballot cast **inside** its
 window, finalized with `counted_through == end_block` and `BallotDerived`, and a
 payout registered and **claimed** — the first claimed payout on any network.
@@ -188,7 +194,6 @@ What is not done:
   on mainnet, so settling a 5 STRK ballot destroys more than it returns.
   `--force-uneconomic` exists because that is a real property of this pool, not a
   bug. Batching refunds into one pool transaction is the fix and is not built.
-- **No demo video.**
 - **The tally is checkable, not provable — still.** v3 publishes a commitment to
   the ballot set as well as the pin, and `verify-tally` reproduces it. That
   narrows the claim and makes a disagreement locatable, but an operator who
