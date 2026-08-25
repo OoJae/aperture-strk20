@@ -19,13 +19,22 @@
  */
 
 import { Buffer } from "node:buffer";
-import { appendFileSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ec, hash, num } from "starknet";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ENV = resolve(ROOT, ".env");
+
+function upsert(name: string, value: string): void {
+  let env = existsSync(ENV) ? readFileSync(ENV, "utf8") : "";
+  const pattern = new RegExp(`^${name}=.*$`, "m");
+  if (pattern.test(env)) env = env.replace(pattern, `${name}=${value}`);
+  else env += `${env.endsWith("\n") || env === "" ? "" : "\n"}${name}=${value}\n`;
+  writeFileSync(ENV, env, { mode: 0o600 });
+}
+
 
 /** The OpenZeppelin account class, declared on both networks. */
 const OZ_ACCOUNT_CLASS =
@@ -64,14 +73,9 @@ function main(): number {
     0,
   );
 
-  appendFileSync(
-    ENV,
-    `\n# Multisig signer "${label}" for ${network}, derived ${new Date().toISOString().slice(0, 10)}.\n` +
-      `# Counterfactual: no account exists at this address until it is deployed,\n` +
-      `# which it must be before it first confirms a multisig transaction.\n` +
-      `${base}_ADDRESS=${address}\n${base}_PRIVATE_KEY=${privateKey}\n${base}_SALT=${salt}\n`,
-    { mode: 0o600 },
-  );
+  upsert(`${base}_ADDRESS`, address);
+  upsert(`${base}_PRIVATE_KEY`, privateKey);
+  upsert(`${base}_SALT`, salt);
 
   console.log(`Signer "${label}" for ${network}:`);
   console.log(`  ${address}`);

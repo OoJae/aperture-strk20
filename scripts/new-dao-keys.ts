@@ -24,7 +24,7 @@
  */
 
 import { Buffer } from "node:buffer";
-import { appendFileSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ec, num } from "starknet";
@@ -36,6 +36,15 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ENV = resolve(ROOT, ".env");
+
+function upsert(name: string, value: string): void {
+  let env = existsSync(ENV) ? readFileSync(ENV, "utf8") : "";
+  const pattern = new RegExp(`^${name}=.*$`, "m");
+  if (pattern.test(env)) env = env.replace(pattern, `${name}=${value}`);
+  else env += `${env.endsWith("\n") || env === "" ? "" : "\n"}${name}=${value}\n`;
+  writeFileSync(ENV, env, { mode: 0o600 });
+}
+
 
 const randomFelt = (): string =>
   `0x${Buffer.from(ec.starkCurve.utils.randomPrivateKey()).toString("hex")}`;
@@ -79,17 +88,12 @@ function main(): number {
   const seed = randomViewingKey();
   assertValidViewingKey(seed);
 
-  appendFileSync(
-    ENV,
-    `\n# DAO key material, generated ${new Date().toISOString().slice(0, 10)}.\n` +
-      `# The public key is the Stark public half of the private key below; the\n` +
-      `# loader checks that, because a mismatched pair yields ballot addresses no\n` +
-      `# account can ever be deployed at.\n` +
-      `DAO_BALLOT_ACCOUNT_PRIVATE_KEY=${privateKey}\n` +
-      `DAO_MASTER_PUBLIC_KEY=${publicKey}\n` +
-      `DAO_BALLOT_VIEWING_SEED=${num.toHex(seed)}\n`,
-    { mode: 0o600 },
-  );
+  // Replaced in place, not appended: .env.example ships these as blank
+  // placeholders, and an appended duplicate sits below one that already
+  // declared the name.
+  upsert("DAO_BALLOT_ACCOUNT_PRIVATE_KEY", privateKey);
+  upsert("DAO_MASTER_PUBLIC_KEY", publicKey);
+  upsert("DAO_BALLOT_VIEWING_SEED", num.toHex(seed));
 
   console.log("Wrote three values to .env (gitignored). Nothing was sent.\n");
   console.log(`  DAO_MASTER_PUBLIC_KEY  ${publicKey}`);

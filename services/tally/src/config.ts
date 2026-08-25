@@ -59,7 +59,14 @@ export function loadDotEnv(): void {
     if (!match || line.trimStart().startsWith("#")) continue;
     const [, key, rawValue] = match;
     if (key === undefined || key in process.env) continue;
-    process.env[key] = rawValue!.trim().replace(/^(['"])(.*)\1$/, "$2");
+    const value = rawValue!.trim().replace(/^(['"])(.*)\1$/, "$2");
+    // A blank assignment is not a value, and setting one would shadow a real
+    // assignment further down the file — which is exactly what happened when a
+    // generator appended keys after the blank placeholders shipped in
+    // .env.example. Skipping keeps "declared but empty" and "absent" the same
+    // thing, which is how every caller already treats it.
+    if (value === "") continue;
+    process.env[key] = value;
   }
 }
 
