@@ -1,4 +1,4 @@
-import { DEPLOYMENTS, ACTIVE } from "@oojae/strk20-governance";
+import { DEPLOYMENTS, ACTIVE, latestPayoutSequence } from "@oojae/strk20-governance";
 import { VOYAGER, shortHex } from "../lib/chain.ts";
 
 /**
@@ -18,43 +18,53 @@ import { VOYAGER, shortHex } from "../lib/chain.ts";
  * to move a DAO's treasury is the feature.
  */
 
-const STEPS = [
-  {
-    n: "01",
-    what: "Announce",
-    hash: "0x1288aa459a8a7a1f85a4a4b61eb9d7045a551f4be0f19d69d3c451669db110f",
-    detail:
-      "Reserves 1 STRK of the proposal's 2 STRK cap and records the block. Grants nothing — the anonymizer will still refuse to escrow against it.",
-  },
-  {
-    n: "02",
-    what: "Wait 1800 blocks",
-    hash: null,
-    detail:
-      "About an hour. The payout is public and unusable for the whole of it, which is the window in which anyone watching the registry could object.",
-  },
-  {
-    n: "03",
-    what: "Authorize",
-    hash: "0x7c34cb2221ed5b8a7e375615c8463b40508fbae888eed8fe67e1200ae84562a",
-    detail:
-      "Two of three signers confirmed and the multisig executed. No single key can reach this state.",
-  },
-  {
-    n: "04",
-    what: "Register",
-    hash: "0x144fdb94ec51ef1f462bbb185538fd852a5d2e441879841b29cf7a892710bdb",
-    detail:
-      "The pool withdrew to GovernanceAnonymizer and called its privacy_invoke. The contract checked the licence and its own escrow ledger before parking the value against a commitment.",
-  },
-  {
-    n: "05",
-    what: "Claim",
-    hash: "0x500f21db7e4864ca024fd1c9febcd8b8c8c1408282b72aa0eb926a02b4d0491",
-    detail:
-      "The preimage opened the commitment. Afterwards the anonymizer's outstanding and unattached both read zero — nothing stranded.",
-  },
+/**
+ * Derived from the ledger rather than retyped.
+ *
+ * These steps used to carry their transaction hashes as literals, which is the
+ * drift `scripts/tests/claims.test.ts` exists to prevent: one fact stored twice,
+ * with the copy in the component free to go stale the moment a payout is re-run.
+ *
+ * Which four legs those are is a ledger question rather than a presentation one,
+ * so it lives in the package as `latestPayoutSequence()` where it is tested.
+ * Only the labels below are presentation, and a label cannot drift from the
+ * chain.
+ */
+type Step = {
+  readonly n: string;
+  readonly what: string;
+  readonly hash: string | null;
+  readonly detail: string;
+};
+
+const { announced, licensed, registered, claimed } = latestPayoutSequence();
+
+const LEGS = [
+  { leg: announced, label: "Announce" },
+  { leg: licensed, label: "Authorize" },
+  { leg: registered, label: "Register" },
+  { leg: claimed, label: "Claim" },
 ] as const;
+
+const STEPS: readonly Step[] = LEGS.flatMap(({ leg, label }): Step[] => {
+  if (!leg) return [];
+  const step: Step = { n: "", what: label, hash: leg.hash, detail: leg.detail };
+  // The wait is not a transaction, so it has no ledger entry of its own. It is
+  // the gap between announcing and licensing — measured, not asserted.
+  if (label === "Authorize" && announced) {
+    return [
+      {
+        n: "",
+        what: `Wait ${(leg.block - announced.block).toLocaleString("en-US")} blocks`,
+        hash: null,
+        detail:
+          "About an hour, against the 1800-block minimum the registry enforces. The payout is public and unusable for the whole of it, which is the window in which anyone watching the registry could object.",
+      },
+      step,
+    ];
+  }
+  return [step];
+}).map((s, i) => ({ ...s, n: String(i + 1).padStart(2, "0") }));
 
 export function TreasuryPayoutRecord() {
   const deployment = DEPLOYMENTS[ACTIVE];

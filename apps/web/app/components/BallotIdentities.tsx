@@ -9,10 +9,12 @@
  * account class hash, DAO master public key — and none of those name a registry
  * or a chain. So the badge matches on every network, always, deployed or not.
  *
- * On mainnet all three of these addresses have no contract at them. A visitor
- * following the site's own instructions and sending STRK to a green "match"
- * would lose it. The check the panel was missing is the one that matters:
- * is anything actually deployed and registered there.
+ * On the v1 mainnet deployment all three of these addresses had no contract at
+ * them. A visitor following the site's own instructions and sending STRK to a
+ * green "match" would have lost it. The check the panel was missing is the one
+ * that matters, and it is still the one it makes: is anything actually deployed
+ * and registered there. Under v3 all three are, which is a fact the panel reads
+ * from the chain rather than a claim made here.
  */
 
 import { CHOICES, deriveBallotIdentity } from "@oojae/strk20-governance";

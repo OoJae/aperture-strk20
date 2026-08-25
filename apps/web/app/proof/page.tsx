@@ -1,6 +1,7 @@
 import {
   ACTIVE,
   DEPLOYMENTS,
+  LEDGER,
   nonScoring,
   scoring,
   txUrl,
@@ -13,6 +14,15 @@ import {
   VOYAGER,
   shortHex,
 } from "../lib/chain.ts";
+
+const BALLOTS_CAST = LEDGER.filter(
+  (e) => e.network === ACTIVE && e.kind === "ballot-cast",
+).length;
+
+/** Words, not digits: "the 2nd sealed ballot" reads like a footnote marker. */
+const ORDINAL =
+  ["", "first", "second", "third", "fourth", "fifth"][BALLOTS_CAST] ??
+  `${BALLOTS_CAST}th`;
 
 /**
  * The record.
@@ -200,10 +210,15 @@ export default function Proof() {
           identities are deployed at the addresses this registry publishes and
           registered with the pool, and one real sealed ballot was cast{" "}
           <em>inside its voting window</em>, counted, and finalized at 5 STRK
-          for. The published tally names the block it counted through, and the
-          contract requires that block to be the window&rsquo;s close &mdash; so
-          the count is reproducible by anyone reading the same state, rather than
-          taken on our word.
+          for. {BALLOTS_CAST > 1
+            ? `It is the ${ORDINAL} sealed ballot on this network, counting those cast under superseded registries.`
+            : ""} The published tally names the block it counted through, the
+          contract requires that block to be the window&rsquo;s close, and v3
+          also publishes a commitment to the exact ballot set counted &mdash; so
+          a disagreement is locatable rather than merely suspected. It is not
+          reproducible by <em>anyone</em>: counting means discovering the notes
+          each ballot identity received, which needs that identity&rsquo;s
+          viewing key. Only someone trusted with those keys can check.
         </p>
         <p className="fade dim" data-reveal data-delay="140">
           This section used to say the voting was Sepolia-only, and that the one

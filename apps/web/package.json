@@ -2,7 +2,7 @@
   "name": "@aperture/web",
   "version": "0.0.0",
   "private": true,
-  "description": "Aperture demo dapp — read proposals, ballot identities and tallies with no wallet; connect one only for the treasury-payout path.",
+  "description": "Aperture demo dapp — reads proposals, ballot identities, tallies and the treasury record from mainnet with no wallet and no login.",
   "license": "MIT",
   "engines": {
     "node": ">=24"

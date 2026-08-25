@@ -100,7 +100,15 @@ export async function readChain<T>(fn: (p: RpcProvider) => Promise<T>): Promise<
   throw new RpcUnavailableError(attempts);
 }
 
-/** Kept for the wallet path, which needs a provider instance rather than a read. */
+/**
+ * A provider instance rather than a single read.
+ *
+ * This was kept for the wallet path, which no longer exists — under v3 the
+ * treasury page is a record derived from the ledger, because a browser wallet is
+ * not the registry's 2-of-3 tally_operator. Nothing in the app calls this today;
+ * it stays as the one place that knows how to build a provider, so a future
+ * caller does not reinvent the fallback logic above.
+ */
 export function provider(): RpcProvider {
   return providerFor(DEPLOYMENT.rpcUrls[0]!);
 }

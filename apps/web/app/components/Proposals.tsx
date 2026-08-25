@@ -98,8 +98,8 @@ function TallyProvenance({ proposal, tally }: { proposal: Proposal; tally: Tally
         so no note could ever have been sent to one. The units give it away:
         these are raw base units, around 10⁻¹⁶ STRK, not a staked weight. A
         passed proposal is a precondition for demonstrating a treasury payout at
-        all, which is why it exists. The only tally produced by counted ballots
-        is on Starknet Sepolia. <a href="/proof">The record →</a>
+        all, which is why it exists. No tally on this network has been produced
+        by counted ballots. <a href="/proof">The record →</a>
       </p>
     );
   }

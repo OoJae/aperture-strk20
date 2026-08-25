@@ -18,7 +18,7 @@ const STEPS = [
     h: "Derive the destination",
     p: "Each proposal has one receiving identity per choice, derived from public inputs. Your browser computes it independently and checks it against what the contract publishes, so you never take the address on faith.",
     aside: "Verifiable",
-    where: "Either network — but agreeing on an address is not the same as an account existing at it, and on mainnet none does.",
+    where: "Either network. Agreeing on an address is not the same as an account existing at it, so the panel checks both — and on mainnet all three are deployed and registered.",
   },
   {
     n: "03",

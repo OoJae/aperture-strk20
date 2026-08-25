@@ -1,7 +1,17 @@
 import { Chrome } from "./components/Chrome.tsx";
-import { ACTIVE, scoring } from "@oojae/strk20-governance";
+import { ACTIVE, LEDGER, scoring } from "@oojae/strk20-governance";
 import { TEST_COUNTS } from "./lib/counts.ts";
 import { REGISTRY_ADDRESS, VOYAGER, shortHex } from "./lib/chain.ts";
+
+/**
+ * Sealed ballots cast on the active network, counted rather than quoted.
+ *
+ * A number in a sentence is a claim, and this repository's characteristic
+ * failure is a claim that was true once.
+ */
+const BALLOTS_CAST = LEDGER.filter(
+  (e) => e.network === ACTIVE && e.kind === "ballot-cast",
+).length;
 
 export default function Home() {
   return (
@@ -124,7 +134,14 @@ export default function Home() {
             // "payouts", which stopped being true the moment the scoring set
             // grew to include creating a proposal, publishing a tally and
             // licensing a payout — none of which is a payout.
-            { k: "1", v: "sealed ballot cast, counted and finalized on mainnet" },
+            //
+            // Then it was the literal "1", which stopped being true the moment
+            // a second ballot was cast against v3. Counting the ledger is the
+            // only version of this that cannot go stale.
+            {
+              k: String(BALLOTS_CAST),
+              v: `sealed ballot${BALLOTS_CAST === 1 ? "" : "s"} cast, counted and finalized on mainnet`,
+            },
             {
               k: String(scoring(ACTIVE).length),
               v: "mainnet transactions through our own Cairo contracts",
