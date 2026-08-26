@@ -99,10 +99,25 @@ jobs:
       - name: Install without the tally workspace
         run: pnpm install --frozen-lockfile --filter '!@aperture/tally'
 
+      # A filter that matches nothing exits 0. This job spent its life printing
+      # "No projects matched the filters" for @aperture/strk20-governance — the
+      # package is published as @oojae/strk20-governance — and passing green
+      # without ever typechecking or testing it. Assert the match first, so the
+      # next rename fails the build instead of silently skipping it.
       - name: Shared package
         run: |
-          pnpm --filter @aperture/strk20-governance typecheck
-          pnpm --filter @aperture/strk20-governance test
+          set -euo pipefail
+          PKG=@oojae/strk20-governance
+          # `pnpm ls` prints a bare [] for a filter that matches nothing, and
+          # still exits 0. Test the JSON, not the exit code, and not the text on
+          # stdout — the "No projects matched" notice is itself stdout, so a
+          # non-empty check passes on the failure case.
+          if [ "$(pnpm ls --filter "$PKG" --depth -1 --json | tr -d '[:space:]')" = "[]" ]; then
+            echo "::error::filter '$PKG' matched no workspace project"
+            exit 1
+          fi
+          pnpm --filter "$PKG" typecheck
+          pnpm --filter "$PKG" test
 
       - name: Web app builds
         run: pnpm --filter @aperture/web build

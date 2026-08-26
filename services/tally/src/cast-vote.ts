@@ -54,15 +54,13 @@ async function main(argv: string[]): Promise<number> {
     return 1;
   }
 
-  const provingServiceUrl = process.env.PROVING_SERVICE_URL;
-  if (!provingServiceUrl) {
-    console.error("PROVING_SERVICE_URL is required — casting a ballot is a pool tx.");
-    return 1;
-  }
-
   const proposalId = BigInt(idArg);
   const weight = parseTokenAmount(amountArg);
   const config = loadConfig();
+  // Network-scoped, via config. Reading process.env.PROVING_SERVICE_URL here
+  // sent Sepolia runs to the mainnet prover, which is the one thing a
+  // walkthrough on Sepolia must not do.
+  const provingServiceUrl = config.provingServiceUrl;
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
   // From the registry, so it matches the contract that publishes the addresses.
   const domain = await readBallotDomain(provider, config.registryAddress);

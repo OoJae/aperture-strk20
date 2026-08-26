@@ -26,21 +26,22 @@ import { describeError } from "./report-error.ts";
 import { ensurePoolAllowance } from "./pool-allowance.ts";
 import { readBallotDomain } from "./registry.ts";
 
-const provingServiceUrl = process.env.PROVING_SERVICE_URL;
-
 async function main(argv: string[]): Promise<number> {
   const idArg = argv[2];
   if (!idArg) {
     console.error("Usage: node src/register-ballots.ts <proposal-id>");
     return 1;
   }
-  if (!provingServiceUrl) {
-    console.error("PROVING_SERVICE_URL is required to register (registration is a pool tx).");
-    return 1;
-  }
-
   const proposalId = BigInt(idArg);
   const config = loadConfig();
+  // Not process.env.PROVING_SERVICE_URL: that name is the mainnet one, so
+  // reading it directly pointed every Sepolia run at the mainnet prover.
+  // loadConfig picks PROVING_SERVICE_URL_SEPOLIA when the network is Sepolia.
+  const provingServiceUrl = config.provingServiceUrl;
+  if (!provingServiceUrl) {
+    console.error("A proving service is required to register (registration is a pool tx).");
+    return 1;
+  }
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
   // From the registry, so it matches the contract that publishes the addresses.
   const domain = await readBallotDomain(provider, config.registryAddress);

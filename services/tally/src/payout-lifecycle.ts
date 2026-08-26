@@ -40,17 +40,19 @@ async function main(argv: string[]): Promise<number> {
     console.error("Usage: node src/payout-lifecycle.ts <proposal-id> <amount-in-strk>");
     return 1;
   }
-  const provingServiceUrl = process.env.PROVING_SERVICE_URL;
-  const anonymizer = process.env.APERTURE_ANONYMIZER_ADDRESS;
-  if (!provingServiceUrl || !anonymizer) {
-    console.error("PROVING_SERVICE_URL and APERTURE_ANONYMIZER_ADDRESS are required.");
-    return 1;
-  }
-
   const { shortString, hash: h, num } = await import("starknet");
   const proposalId = BigInt(idArg);
   const amount = parseTokenAmount(amountArg);
   const config = loadConfig();
+
+  // config, not process.env: the bare names are the mainnet ones, so reading
+  // them directly ran Sepolia against the mainnet prover.
+  const provingServiceUrl = config.provingServiceUrl;
+  const anonymizer = config.anonymizerAddress;
+  if (!provingServiceUrl || !anonymizer) {
+    console.error("A proving service and an anonymizer address are required.");
+    return 1;
+  }
 
   // Disclosed to the indexer in cleartext, so it is its own key rather than the
   // seed every ballot viewing key derives from.
