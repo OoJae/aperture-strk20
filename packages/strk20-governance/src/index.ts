@@ -46,6 +46,7 @@ export {
   latestPayoutSequence,
   nonScoring,
   scoring,
+  touchesPool,
   txUrl,
 } from "./deployments.ts";
 export type {

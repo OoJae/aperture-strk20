@@ -681,6 +681,23 @@ export const DEMO_URL = "https://aperture-strk20.vercel.app";
  */
 export const DEMO_VIDEO = "https://youtu.be/rOHlgf17WqA";
 
+/**
+ * Whether a transaction emits an event from the STRK20 pool itself.
+ *
+ * This is the organisers' rule, and it is not our rule. Ours is stricter: a hash
+ * counts only if it ran through one of Aperture's own contracts. The two sets
+ * overlap without either containing the other — a `finalize` is ours and touches
+ * no pool, a bare `shield` touches the pool and is nobody's contract.
+ *
+ * It is derived rather than stored because the chain makes it exact: everything
+ * routed through the registry is a plain contract call that never reaches the
+ * pool, and everything else — anonymizer payouts, and the raw pool operations —
+ * moves value through it. Checked against all 34 mainnet receipts on 2026-08-26:
+ * anonymizer 10/10 emit a pool event, registry 0/7, unrouted 17/17.
+ */
+export const touchesPool = (entry: LedgerEntry): boolean =>
+  entry.through !== "registry";
+
 export const scoring = (network: NetworkName = ACTIVE): readonly LedgerEntry[] =>
   LEDGER.filter((e) => e.network === network && e.scores);
 

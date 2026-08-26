@@ -18,6 +18,7 @@ import {
   LEDGER,
   nonScoring,
   scoring,
+  touchesPool,
 } from "../../packages/strk20-governance/src/deployments.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -59,6 +60,55 @@ test("scoring transactions occupy a strict prefix", () => {
       "a scoring transaction is listed after a non-scoring one",
     );
   }
+});
+
+/**
+ * Only the first ten hashes are ever checked, and two different rules get
+ * applied to them: ours (ran through one of our contracts) and the organisers'
+ * (emits a pool event). Neither set contains the other.
+ *
+ * The test above guards ours and passed happily while three of the ten checked
+ * slots held a proposal-create, a finalize and a payout-authorize — all ours,
+ * none of them visible to the organisers' checker, which read 7/10. Guarding one
+ * rule and calling the prefix safe is what let that sit there.
+ */
+const CHECKED_PREFIX = 10;
+
+test("every checked slot satisfies BOTH scoring rules", () => {
+  const byHash = new Map(LEDGER.map((e) => [BigInt(e.hash), e]));
+  const prefix = manifest.transactions.slice(0, CHECKED_PREFIX);
+
+  for (const [i, hash] of prefix.entries()) {
+    const entry = byHash.get(BigInt(hash));
+    assert.ok(entry, `${hash} is in the manifest but not the ledger`);
+    assert.equal(
+      entry!.scores,
+      true,
+      `slot ${i + 1} (${hash}) does not run through one of our contracts`,
+    );
+    assert.equal(
+      touchesPool(entry!),
+      true,
+      `slot ${i + 1} (${hash}) emits no pool event, so the organisers' checker ` +
+        `ignores it — a wasted slot out of the only ${CHECKED_PREFIX} they read`,
+    );
+  }
+});
+
+test("the prefix is as long as the qualifying set allows", () => {
+  // If more transactions satisfy both rules than there are checked slots, the
+  // prefix should be full. If fewer, it should hold all of them — a qualifying
+  // transaction left outside the prefix is a slot given away.
+  const qualifying = scoring(ACTIVE).filter(touchesPool);
+  const want = Math.min(qualifying.length, CHECKED_PREFIX);
+  const got = manifest.transactions
+    .slice(0, CHECKED_PREFIX)
+    .filter((h) => qualifying.some((e) => BigInt(e.hash) === BigInt(h))).length;
+  assert.equal(
+    got,
+    want,
+    `${got} of the first ${CHECKED_PREFIX} satisfy both rules, but ${want} could`,
+  );
 });
 
 test("contracts are the active network's, live set first", () => {
