@@ -2,7 +2,8 @@
 
 **Sealed-ballot governance and a shielded treasury for DAOs, native to STRK20.**
 
-Live on Starknet mainnet: **https://aperture-strk20.vercel.app**
+Live on Starknet mainnet: **<https://aperture-strk20.vercel.app>**
+· Demo film: **<https://youtu.be/rOHlgf17WqA>** (2:37)
 
 A vote is a private transfer. Casting a ballot means privately moving shielded
 weight into the receiving identity for the choice you want, so an observer sees
@@ -141,7 +142,7 @@ Named rather than hidden:
 | Piece | State |
 |---|---|
 | Cairo contracts | Implemented, <!--cairo-->96<!--/cairo--> `snforge` tests, deployed to mainnet and Sepolia |
-| Shared TS package | Implemented — ballot derivation, viewing keys, aggregation. <!--ts-->95<!--/ts--> TypeScript tests across the workspace |
+| Shared TS package | Implemented — ballot derivation, viewing keys, aggregation. <!--ts-->97<!--/ts--> TypeScript tests across the workspace |
 | Tally service | Implemented. Discovers notes, aggregates, publishes on-chain. Run against mainnet and Sepolia |
 | Demo dapp | Live on mainnet, no login |
 | Mainnet transactions | 34 in [`strk20.json`](strk20.json), 17 through our own contracts |
@@ -149,6 +150,15 @@ Named rather than hidden:
 | Claiming a payout | Works on both networks. Two mainnet claims: `0x1174d989…` under v2 and `0x500f21db…` under v3 |
 | Refunds | Delivered on both networks — 5 STRK returned to the voter on each. Uneconomic one note at a time: a flat 6 STRK mainnet pool fee against a 5 STRK stake, and not yet batched |
 | Demo video | [2:37, on YouTube](https://youtu.be/rOHlgf17WqA) |
+
+The shared package is published: **`@oojae/strk20-governance`**
+([npm](https://www.npmjs.com/package/@oojae/strk20-governance)) — ballot-identity
+derivation, viewing-key handling, tally aggregation and the payout and
+ballot-set commitments, with the Cairo-pinned vectors that keep them honest.
+
+```sh
+npm install @oojae/strk20-governance
+```
 
 ## Repository layout
 
@@ -165,6 +175,8 @@ strk20.json                   Transaction manifest
 ## Building
 
 Requires Node 24+, pnpm 11.1.2, Scarb 2.20.0, and Starknet Foundry 0.63.0.
+The `services/tally` install also needs the GitHub CLI (`gh`), for the reason
+in the next section. Everything else builds without it.
 
 ### The GitHub Packages token
 
@@ -216,6 +228,15 @@ mainnet against the contracts above; see `docs/DEPLOYMENTS.md` for every hash.
 Starknet fees are STRK-denominated, not ETH. Accounts are contracts, so you fund
 the counterfactual address *between* `account create` and `account deploy`.
 
+The `sncast` commands below read an RPC URL from your shell, and nothing puts
+`.env` there — the scripts load it themselves, but `sncast` is not one of ours.
+Export it first, or those two commands receive an empty `--url` and fail with a
+misleading error:
+
+```sh
+set -a && . ./.env && set +a
+```
+
 ```sh
 # 0. The DAO's own keys. Three values that must hang together — the public key
 #    is the Stark public half of the signing key, and the viewing seed is a
@@ -248,28 +269,37 @@ node scripts/create-proposal.ts "ipfs://your-proposal" --lead 12 --span 75 --cap
 node scripts/deploy-ballot-accounts.ts 1
 node services/tally/src/register-ballots.ts 1
 
-# 4. Cast, inside the window. Shields 5 STRK publicly, waits ten blocks for the
+# 4. The account that will actually touch the pool, and its viewing key.
+#    Separate from the operator on purpose: the pool binds an address to a
+#    viewing key WRITE-ONCE, so a key that is not written down costs you that
+#    address forever. This derives and saves all three values to .env first,
+#    then funds, deploys and registers. Run it without --deploy to see what it
+#    would do; nothing is sent until you pass the flag.
+node services/tally/src/new-pool-account.ts
+node services/tally/src/new-pool-account.ts --deploy
+
+# 5. Cast, inside the window. Shields 5 STRK publicly, waits ten blocks for the
 #    note to mature, then privately transfers it into the FOR identity.
 node services/tally/src/cast-vote.ts 1 for 5
 
-# 5. See what is in each ballot box. A read: no proof, no fee, no transaction.
+# 6. See what is in each ballot box. A read: no proof, no fee, no transaction.
 #    Run it before waiting out a window, not after.
 node services/tally/src/probe-ballots.ts 1
 
-# 6. Count, then publish the aggregate and the block it was counted through
+# 7. Count, then publish the aggregate and the block it was counted through
 node services/tally/src/index.ts 1
 node services/tally/src/index.ts 1 --finalize
 
-# 7. Check the published tally against an independent count, including the
+# 8. Check the published tally against an independent count, including the
 #    commitment to the exact set of ballots it counted
 node services/tally/src/verify-tally.ts 1
 
-# 8. Give each voter their stake back. A flat pool fee per note, so refunding a
+# 9. Give each voter their stake back. A flat pool fee per note, so refunding a
 #    small ballot costs more than it returns — it says so and skips unless
 #    --force-uneconomic.
 node services/tally/src/refund-lifecycle.ts 1
 
-# 9. Return what is left in the ballot identities once the window has closed
+# 10. Return what is left in the ballot identities once the window has closed
 node scripts/sweep-ballot-accounts.ts 1
 ```
 
@@ -320,6 +350,18 @@ Sharp edges worth knowing before you build against the pool:
   returns `OHTTP request failed (500)`, rather than saying what is wrong. Three
   days were lost here to theories about proving relays and note discovery; the
   answer was simply to shield more. Check the shielded balance first.
+
+## Documentation
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the two routes into the pool,
+  how a ballot becomes a private transfer, and where each key lives.
+- [`docs/TRUST_MODEL.md`](docs/TRUST_MODEL.md) — what is private, what is public,
+  what is trusted, and what we locked up and cannot recover. Nothing here or on
+  the demo claims more than that page does.
+- [`docs/DEPLOYMENTS.md`](docs/DEPLOYMENTS.md) — every contract and every hash,
+  on both networks, including the superseded generations.
+- [`docs/RUBRIC_MAP.md`](docs/RUBRIC_MAP.md) — where to look for each thing the
+  sprint is judged on, and what is still not done.
 
 ## License
 

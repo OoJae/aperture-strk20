@@ -14,9 +14,17 @@ things live.
    with a one-line summary of what it does and what it costs. Sepolia is
    free-fire.
 3. **Verify at build time.** Before writing code against any STRK20 symbol,
-   confirm its current name and signature in the docs mirror at
-   `https://strk20-by-example.org/llms-full.txt`. The docs win over any local
-   note, including this file. Flag drift when you find it.
+   confirm its current name and signature against the source, not against a
+   local note — this file included. Flag drift when you find it.
+
+   **The mirror this rule used to name is gone.**
+   `https://strk20-by-example.org/llms-full.txt` stopped resolving by
+   2026-08-26: DNS still answers with a retired Vercel address (76.76.21.21)
+   and the connection is refused, so it fails as a dead host rather than a 404.
+   Use the SDK's own types in `node_modules/@starkware-libs/starknet-privacy-sdk`
+   and the monorepo quickstart at
+   `github.com/starkware-libs/starknet-privacy/blob/main/sdk/README.md`, which
+   is authoritative anyway per fact 4 below.
 4. **Pins.** `starknet@^10.4.0` in every `package.json` — a bare install
    resolves to a version without the STRK20 API. Cairo toolchain: Scarb 2.20.0,
    Starknet Foundry 0.63.0, `snforge_std` 0.63.0. CI pins the same versions.
@@ -150,7 +158,7 @@ Verified against the docs mirror and the reference implementations on
 | Chain | `SN_MAIN` / `SN_SEPOLIA` |
 | RPC | From `.env` only, never inline. No-key defaults in `.env.example` |
 | Sepolia faucet | `https://faucet.starknet.io` — 100 STRK per address per 24h |
-| Docs mirror | `https://strk20-by-example.org/llms-full.txt` |
+| Docs mirror | **Dead since 2026-08-26** — was `https://strk20-by-example.org/llms-full.txt`. Use the SDK types and the monorepo quickstart |
 
 Starknet fees are **STRK-denominated**, not ETH — guides that say to fund a
 testnet account with ETH predate v0.14 and are wrong. Accounts are contracts and
