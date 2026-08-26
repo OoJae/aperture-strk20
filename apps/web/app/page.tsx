@@ -1,5 +1,5 @@
 import { Chrome } from "./components/Chrome.tsx";
-import { ACTIVE, LEDGER, scoring } from "@oojae/strk20-governance";
+import { ACTIVE, DEMO_VIDEO, LEDGER, scoring } from "@oojae/strk20-governance";
 import { TEST_COUNTS } from "./lib/counts.ts";
 import { REGISTRY_ADDRESS, VOYAGER, shortHex } from "./lib/chain.ts";
 
@@ -19,8 +19,12 @@ export default function Home() {
       {/* The hero is the thesis: an aperture almost shut, and the sentence that
           explains why that is the product. */}
       <section className="hero shell">
+        {/* "Live on mainnet" belongs above the fold. It was two and a half
+            viewports down, which is past the point a judge has decided whether
+            this is a demo or a deployed thing. */}
         <p className="label hero-eyebrow fade" data-reveal>
-          Sealed-ballot governance · STRK20
+          Sealed-ballot governance · STRK20 ·{" "}
+          <span className="accent">Live on Starknet mainnet</span>
         </p>
 
         <h1 className="hero-line">
@@ -51,6 +55,14 @@ export default function Home() {
             Open the app
             <span aria-hidden="true">→</span>
           </a>
+          {DEMO_VIDEO ? (
+            <p className="fade dim hero-film">
+              Short on time?{" "}
+              <a className="link-inline" href={DEMO_VIDEO}>
+                Watch the film · 2:37 →
+              </a>
+            </p>
+          ) : null}
         </div>
       </section>
 

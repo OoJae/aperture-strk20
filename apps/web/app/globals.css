@@ -977,3 +977,10 @@ main {
   line-height: 1.6;
   color: var(--latent);
 }
+
+/* The film link sits under the primary action: available to a judge with two
+   minutes, never competing with the app itself for attention. */
+.hero-film {
+  margin-top: 1.1rem;
+  font-size: 0.85rem;
+}

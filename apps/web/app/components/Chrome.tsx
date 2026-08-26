@@ -7,6 +7,7 @@
  */
 
 import type { CSSProperties, ReactNode } from "react";
+import { DEMO_VIDEO } from "@oojae/strk20-governance";
 import { Iris } from "./Iris.tsx";
 import { useReveals, useScrollProgress, useSmoothScroll } from "../lib/motion.ts";
 
@@ -64,7 +65,14 @@ export function Chrome({
         <div className="foot-row">
           <span className="label">Aperture · Starknet mainnet</span>
           <span className="label">
-            <a href="https://github.com/OoJae/aperture-strk20">Source</a> · MIT
+            <a href="https://github.com/OoJae/aperture-strk20">Source</a>
+            {DEMO_VIDEO ? (
+              <>
+                {" · "}
+                <a href={DEMO_VIDEO}>Demo film</a>
+              </>
+            ) : null}{" "}
+            · MIT
           </span>
         </div>
       </footer>
