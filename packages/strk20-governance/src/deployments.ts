@@ -671,6 +671,17 @@ export const LEDGER: readonly LedgerEntry[] = [
     detail:
       "Vote weight was a one-way stake until this landed. Re-running the count afterwards returns the same total and the same ballot-set commitment, because discovery reads received-transfer history rather than the unspent set.",
   },
+  {
+    hash: "0x1092efd931e215dfb7be6ca95a4dd0b67eacbac49d20b70a5d4cffa2bab0593",
+    network: "mainnet",
+    kind: "proposal-create",
+    block: 14214549,
+    scores: true,
+    through: "registry",
+    what: "Proposal 2 created: the batched-refund demonstration",
+    detail:
+      "Window 14215072-14216130, quorum at the 5 STRK floor, cap 0 — no payout is planned. Exists so two same-choice ballots can be settled in one pool transaction on mainnet, which Sepolia already proved (0x3b2f3c43…).",
+  },
 ];
 
 export const DEMO_URL = "https://aperture-strk20.vercel.app";
