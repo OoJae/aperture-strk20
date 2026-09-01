@@ -682,6 +682,39 @@ export const LEDGER: readonly LedgerEntry[] = [
     detail:
       "Window 14215072-14216130, quorum at the 5 STRK floor, cap 0 — no payout is planned. Exists so two same-choice ballots can be settled in one pool transaction on mainnet, which Sepolia already proved (0x3b2f3c43…).",
   },
+  {
+    hash: "0x499024f7b795577a72e52ea97ca94d693a9d08cf984ba136040542976f73346",
+    network: "mainnet",
+    kind: "ballot-register",
+    block: 14214640,
+    scores: false,
+    through: null,
+    what: "FOR identity registers its viewing key (proposal 2)",
+    detail:
+      "Write-once: the pool binds this address to one viewing key permanently. A pool-only event, so it does not score by our rule; it is kept because the manifest shows the whole path rather than the flattering half.",
+  },
+  {
+    hash: "0x5c0f1b51455f604f6cb238ccd6b8286641dfdac62e4bcdef7a466c350dd9fd5",
+    network: "mainnet",
+    kind: "ballot-register",
+    block: 14214655,
+    scores: false,
+    through: null,
+    what: "AGAINST identity registers its viewing key (proposal 2)",
+    detail:
+      "Write-once: the pool binds this address to one viewing key permanently. A pool-only event, so it does not score by our rule; it is kept because the manifest shows the whole path rather than the flattering half.",
+  },
+  {
+    hash: "0x4a04b999f36a246c79451834892b25adf94959b5356ca5b4e8d17f6b6172f8",
+    network: "mainnet",
+    kind: "ballot-register",
+    block: 14214672,
+    scores: false,
+    through: null,
+    what: "ABSTAIN identity registers its viewing key (proposal 2)",
+    detail:
+      "Write-once: the pool binds this address to one viewing key permanently. A pool-only event, so it does not score by our rule; it is kept because the manifest shows the whole path rather than the flattering half.",
+  },
 ];
 
 export const DEMO_URL = "https://aperture-strk20.vercel.app";
