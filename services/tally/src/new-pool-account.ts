@@ -20,7 +20,7 @@
 
 import { Account, RpcProvider, ec, hash, num } from "starknet";
 import { Buffer } from "node:buffer";
-import { appendFileSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -42,15 +42,58 @@ const randomFelt = (): string => `0x${Buffer.from(ec.starkCurve.utils.randomPriv
 const strk = (v: bigint): string =>
   `${v / 10n ** 18n}.${(v % 10n ** 18n).toString().padStart(18, "0").slice(0, 3)}`;
 
+/**
+ * Set a variable in .env, replacing an existing assignment rather than adding a
+ * second one. Same shape as scripts/new-dao-keys.ts and new-signer.ts.
+ */
+function upsert(name: string, value: string): void {
+  const env = existsSync(ENV) ? readFileSync(ENV, "utf8") : "";
+  const pattern = new RegExp(`^${name}=.*$`);
+
+  // Collapse to exactly one assignment, keeping the first position.
+  //
+  // A plain first-match replace would disagree with envValue(), which takes the
+  // last non-blank — so on a .env already carrying duplicates from the old
+  // append behaviour, the writer and the reader would point at different lines.
+  // For a viewing key that is not a cosmetic bug: the pool binds an address to
+  // one permanently, and acting on the wrong one strands the account.
+  let seen = false;
+  const kept: string[] = [];
+  for (const line of env.split("\n")) {
+    if (!pattern.test(line)) {
+      kept.push(line);
+      continue;
+    }
+    if (!seen) {
+      kept.push(`${name}=${value}`);
+      seen = true;
+    }
+    // Later duplicates are dropped.
+  }
+  let next = kept.join("\n");
+  if (!seen) next += `${next.endsWith("\n") || next === "" ? "" : "\n"}${name}=${value}\n`;
+  writeFileSync(ENV, next, { mode: 0o600 });
+}
+
 function envValue(name: string): string | undefined {
+  // Last non-blank wins, and blanks are not values.
+  //
+  // This used to append its keys and return the FIRST match. .env starts life as
+  // a copy of .env.example, which declares every name blank, so the placeholder
+  // shadowed the real value written below it: a second run could not see the
+  // actor the first run generated, made another one, and then failed with
+  // "POOL_ACTOR_SALT is missing" — on the exact two-command sequence the README
+  // prescribes. Writing in place fixes the cause; reading last-non-blank also
+  // repairs any .env already polluted by the old behaviour.
+  let found: string | undefined;
   for (const line of readFileSync(ENV, "utf8").split("\n")) {
     const m = line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
     if (m && m[1] === name) {
       const v = m[2]!.trim().replace(/^["']|["']$/g, "");
-      return v === "" ? undefined : v;
+      if (v !== "") found = v;
     }
   }
-  return undefined;
+  return found;
 }
 
 /** A viewing key must land in [1, MAX_VIEWING_KEY], which is half the curve order. */
@@ -104,15 +147,16 @@ async function main(): Promise<number> {
     );
 
     // Persisted BEFORE anything is sent. Nothing below this line can lose them.
-    appendFileSync(
-      ENV,
-      `\n# Pool actor for ${config.network}, generated ${new Date().toISOString().slice(0, 10)}.\n` +
-        `# The pool binds an address to a viewing key WRITE-ONCE. Lose the viewing\n` +
-        `# key and this account can never spend or read a shielded note again.\n` +
-        `${names.address}=${address}\n${names.key}=${privateKey}\n` +
-        `${names.viewing}=${viewingKey}\nPOOL_ACTOR_SALT${suffix}=${salt}\n`,
-      { mode: 0o600 },
-    );
+    //
+    // Written in place rather than appended. .env begins as a copy of
+    // .env.example, which declares each of these blank, and appending left the
+    // blank above the real value — so the next run read the placeholder, decided
+    // no actor existed, and generated a second one. Every other key-writing
+    // script in this repo upserts for exactly this reason.
+    upsert(names.address, address);
+    upsert(names.key, privateKey);
+    upsert(names.viewing, viewingKey);
+    upsert(`POOL_ACTOR_SALT${suffix}`, salt);
     console.log(`Generated a ${config.network} pool actor and wrote its keys to .env.`);
     console.log(`  address ${address}`);
     console.log(`  salt, signing key and viewing key are in .env (gitignored)\n`);
