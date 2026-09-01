@@ -52,11 +52,11 @@ function upsert(name: string, value: string): void {
 
   // Collapse to exactly one assignment, keeping the first position.
   //
-  // A plain first-match replace would disagree with envValue(), which takes the
-  // last non-blank — so on a .env already carrying duplicates from the old
-  // append behaviour, the writer and the reader would point at different lines.
-  // For a viewing key that is not a cosmetic bug: the pool binds an address to
-  // one permanently, and acting on the wrong one strands the account.
+  // Collapsing matters because config.ts and this script both read the first
+  // non-blank assignment. Leaving a stale duplicate below a fresh one is
+  // harmless; leaving one ABOVE it is not, and the old append behaviour could
+  // produce either. For a viewing key that is not cosmetic: the pool binds an
+  // address to one permanently, and acting on the wrong one strands the account.
   let seen = false;
   const kept: string[] = [];
   for (const line of env.split("\n")) {
@@ -76,24 +76,25 @@ function upsert(name: string, value: string): void {
 }
 
 function envValue(name: string): string | undefined {
-  // Last non-blank wins, and blanks are not values.
+  // First NON-BLANK wins — the same rule config.ts uses, deliberately.
   //
-  // This used to append its keys and return the FIRST match. .env starts life as
-  // a copy of .env.example, which declares every name blank, so the placeholder
-  // shadowed the real value written below it: a second run could not see the
-  // actor the first run generated, made another one, and then failed with
-  // "POOL_ACTOR_SALT is missing" — on the exact two-command sequence the README
-  // prescribes. Writing in place fixes the cause; reading last-non-blank also
-  // repairs any .env already polluted by the old behaviour.
-  let found: string | undefined;
+  // The original bug was not the ordering, it was that a blank counted as a
+  // match: .env starts as a copy of .env.example, which declares every name
+  // empty, so the placeholder shadowed the real value and a second run could not
+  // see the actor the first had generated.
+  //
+  // Skipping blanks is the whole fix. Taking the LAST non-blank instead would be
+  // a second, different rule from the one config.ts applies, and the two readers
+  // would then disagree about which pool actor is live — which is exactly how a
+  // cast went to an orphaned address during the walkthrough that found this.
   for (const line of readFileSync(ENV, "utf8").split("\n")) {
     const m = line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
     if (m && m[1] === name) {
       const v = m[2]!.trim().replace(/^["']|["']$/g, "");
-      if (v !== "") found = v;
+      if (v !== "") return v;
     }
   }
-  return found;
+  return undefined;
 }
 
 /** A viewing key must land in [1, MAX_VIEWING_KEY], which is half the curve order. */
