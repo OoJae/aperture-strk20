@@ -181,12 +181,68 @@ export async function getTally(id: bigint): Promise<Tally> {
 }
 
 /**
- * The contract's own verdict, rather than the client's recomputation of it.
- * The page shows both: if they disagree, that is worth seeing.
+ * Where a published tally came from, as the registry records it.
+ *
+ * Reordering these is a consensus change on the Cairo side; the numbers are the
+ * enum's variant indices.
  */
-export async function hasPassed(id: bigint): Promise<boolean> {
-  const [passed] = await callRegistry("has_passed", [id.toString()]);
-  return toBigInt(passed) === 1n;
+export type TallyProvenance = "unset" | "ballot-derived" | "operator-asserted";
+
+const PROVENANCE: readonly TallyProvenance[] = [
+  "unset",
+  "ballot-derived",
+  "operator-asserted",
+];
+
+export interface PayoutTerms {
+  /** The contract's own verdict, not the client's recomputation of it. */
+  passed: boolean;
+  token: string;
+  cap: bigint;
+  provenance: TallyProvenance;
+}
+
+/**
+ * Four facts in one call, which is why the contract bundles them.
+ *
+ * This replaces a `has_passed` read rather than adding one: `has_passed`
+ * delegates to `payout_terms`, so the verdict is the same value and the
+ * provenance comes along free. It matters because the site used to infer
+ * provenance from a hardcoded per-network flag, which cannot distinguish two
+ * proposals on the same network.
+ */
+export async function getPayoutTerms(id: bigint): Promise<PayoutTerms> {
+  const raw = await callRegistry("payout_terms", [id.toString()]);
+  return {
+    passed: toBigInt(raw[0]) === 1n,
+    token: raw[1] ?? "0x0",
+    cap: raw[2] === undefined ? 0n : toBigInt(raw[2]),
+    provenance: PROVENANCE[Number(toBigInt(raw[3] ?? "0x0"))] ?? "unset",
+  };
+}
+
+/**
+ * The block the published tally was counted through.
+ *
+ * `finalize` asserts this equals the proposal's `end_block`, so showing the two
+ * side by side is showing the contract's own guarantee rather than a claim about
+ * it. Zero means never finalized.
+ */
+export async function getCountedThrough(id: bigint): Promise<bigint> {
+  const [block] = await callRegistry("get_counted_through", [id.toString()]);
+  return toBigInt(block);
+}
+
+/**
+ * The commitment to the exact ballot set the tally counted.
+ *
+ * A browser cannot recompute this — it needs the ballot identities' viewing
+ * keys. Displaying it is still worth doing: it is what makes a disagreement
+ * locatable by someone who does hold them, via `verify-tally`.
+ */
+export async function getBallotCommitment(id: bigint): Promise<string> {
+  const [commitment] = await callRegistry("get_ballot_commitment", [id.toString()]);
+  return commitment ?? "0x0";
 }
 
 /** The registry's own derivation, for comparison against the client's. */
