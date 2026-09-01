@@ -26,7 +26,7 @@
 import { RpcProvider } from "starknet";
 
 import { loadConfig } from "./config.ts";
-import { loadPinnedRun } from "./pinned-run.ts";
+import { loadPinnedRun, WindowStillOpenError } from "./pinned-run.ts";
 import { describeError } from "./report-error.ts";
 
 const strk = (v: bigint): string =>
@@ -51,7 +51,17 @@ async function main(argv: string[]): Promise<number> {
     return (Array.isArray(r) ? r : (r as { result: string[] }).result) as string[];
   };
 
-  const { proposal, run, pinned } = await loadPinnedRun(proposalId, config, provider);
+  let loaded;
+  try {
+    loaded = await loadPinnedRun(proposalId, config, provider);
+  } catch (error) {
+    if (error instanceof WindowStillOpenError) {
+      console.error(error.message);
+      return 1;
+    }
+    throw error;
+  }
+  const { proposal, run, pinned } = loaded;
   if (!proposal.finalized) {
     console.error(`Proposal ${proposalId} is not finalized; there is nothing to verify yet.`);
     return 1;

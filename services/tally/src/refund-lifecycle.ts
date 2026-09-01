@@ -38,7 +38,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 
 import { deriveBallotViewingKey } from "@oojae/strk20-governance";
 import { loadConfig } from "./config.ts";
-import { loadPinnedRun, FINALITY_LAG } from "./pinned-run.ts";
+import { loadPinnedRun, FINALITY_LAG, WindowStillOpenError } from "./pinned-run.ts";
 import { ensurePoolAllowance, poolFee } from "./pool-allowance.ts";
 import { assertRegisteredViewingKey } from "./pool-identity.ts";
 import { describeError } from "./report-error.ts";
@@ -125,7 +125,19 @@ async function main(argv: string[]): Promise<number> {
   }
 
   const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
-  const { proposal, run, pinned, domain } = await loadPinnedRun(proposalId, config, provider);
+  // "Not yet" is the most ordinary thing a first run hits, and it used to print
+  // a stack trace for it.
+  let loaded;
+  try {
+    loaded = await loadPinnedRun(proposalId, config, provider);
+  } catch (error) {
+    if (error instanceof WindowStillOpenError) {
+      console.error(error.message);
+      return 1;
+    }
+    throw error;
+  }
+  const { proposal, run, pinned, domain } = loaded;
 
   if (!proposal.finalized) {
     console.error(
@@ -142,7 +154,7 @@ async function main(argv: string[]): Promise<number> {
   console.log(`\nRefunds for proposal ${proposalId} on ${config.network}`);
   console.log(`  counted at block ${pinned}, ${entries.length} ballot(s), ` +
     `${strk(run.refunds.totalAmount)} STRK owed`);
-  console.log(`  pool flat fee ${strk(fee)} STRK per refund\n`);
+  console.log(`  pool flat fee ${strk(fee)} STRK per pool transaction\n`);
 
   const chainId = await provider.getChainId();
   const { createPrivateTransfers } = await import("@starkware-libs/starknet-privacy-sdk");
