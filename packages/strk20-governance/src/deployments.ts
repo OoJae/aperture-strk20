@@ -737,6 +737,28 @@ export const LEDGER: readonly LedgerEntry[] = [
     detail:
       "A private transfer into the FOR identity, cast inside the window (14215072-14216130). The second same-choice ballot follows so the refund can settle both in one pool transaction. Pool-only event; does not score by our rule.",
   },
+  {
+    hash: "0x37e46f7bb3fbdb148d8fc35c0bdfc77c8f60abb2b59527fd2f11e52f7762cdb",
+    network: "mainnet",
+    kind: "shield",
+    block: 14215189,
+    scores: false,
+    through: null,
+    what: "Pool actor shields 5 STRK for the second proposal-2 ballot",
+    detail:
+      "Public by design. A pool-only event, so it counts for the organisers' checker but not for this project's own rule.",
+  },
+  {
+    hash: "0xb7ad16f56dd6fd3f60b1b83e80caff6754b501dffc8973d620eb60a6b10263",
+    network: "mainnet",
+    kind: "ballot-cast",
+    block: 14215220,
+    scores: false,
+    through: null,
+    what: "Sealed ballot: 5 STRK FOR proposal 2, second of two",
+    detail:
+      "The second same-choice ballot, cast inside the window. Two notes now sit at the FOR identity, which is what lets the refund settle both in one pool transaction instead of two. Pool-only event; does not score by our rule.",
+  },
 ];
 
 export const DEMO_URL = "https://aperture-strk20.vercel.app";
