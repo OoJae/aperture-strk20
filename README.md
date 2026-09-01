@@ -251,10 +251,11 @@ than at you:**
 
 The `sncast` commands below read an RPC URL from your shell, and nothing puts
 `.env` there — the scripts load it themselves, but `sncast` is not one of ours.
-`.env.example` ships `STARKNET_RPC_URL_SEPOLIA_SNCAST` **blank**, and `sncast`
-needs RPC spec 0.10 or newer, so set it to a versioned endpoint in `.env` before
-exporting — otherwise these two commands receive an empty `--url` and fail with
-a misleading "Invalid block id":
+`.env.example` ships `STARKNET_RPC_URL_SEPOLIA_SNCAST` blank and falls back to
+`STARKNET_RPC_URL_SEPOLIA`, whose default serves RPC spec 0.10 — which is what
+`sncast` needs. So exporting is enough; set the `_SNCAST` variant only if your
+own provider serves an older spec, where `sncast` fails with a misleading
+"Invalid block id":
 
 ```sh
 set -a && . ./.env && set +a

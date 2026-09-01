@@ -369,6 +369,16 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     description: "Signs for POOL_ACTOR_ADDRESS. Defaults to the operator's key.",
   },
   {
+    name: "SNCAST_ACCOUNTS_FILE",
+    requirement: "optional",
+    secret: false,
+    group: "Secrets",
+    description:
+      "Where sncast keeps its accounts, if not ~/.starknet_accounts. Matches " +
+      "sncast's own --accounts-file, so a throwaway account need not go in your " +
+      "real keyring. Read by scripts/import-sncast-account.ts.",
+  },
+  {
     name: "POOL_ACTOR_SALT",
     requirement: "optional",
     secret: false,

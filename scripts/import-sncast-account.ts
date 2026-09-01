@@ -17,7 +17,16 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ENV = resolve(ROOT, ".env");
-const ACCOUNTS = resolve(homedir(), ".starknet_accounts/starknet_open_zeppelin_accounts.json");
+/**
+ * Where sncast keeps its accounts.
+ *
+ * `sncast --accounts-file` puts them somewhere else, which is the sane thing to
+ * do when you do not want a throwaway account in your real keyring — so honour
+ * the same override here rather than forcing the default.
+ */
+const ACCOUNTS =
+  process.env.SNCAST_ACCOUNTS_FILE ??
+  resolve(homedir(), ".starknet_accounts/starknet_open_zeppelin_accounts.json");
 
 function flag(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
