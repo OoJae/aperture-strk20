@@ -197,11 +197,13 @@ hashes.
 
 What is not done:
 
-- **Refunds cost more than they return, one note at a time.** They work — 5 STRK
-  went back to a voter on each network — but a pool transaction is a flat 6 STRK
-  on mainnet, so settling a 5 STRK ballot destroys more than it returns.
-  `--force-uneconomic` exists because that is a real property of this pool, not a
-  bug. Batching refunds into one pool transaction is the fix and is not built.
+- **Refunds are batched, but the floor is three, not one.** One pool transaction
+  per ballot identity, settling every note it holds — proven on Sepolia
+  (`0x3b2f3c43…`, two ballots, one transaction, one flat fee saved). It cannot
+  collapse to a single transaction per proposal: a pool transaction is scoped to
+  one signing account and one viewing key, and the three choices hold their
+  stakes at different addresses. A lone ballot is still uneconomic on mainnet at
+  6 STRK a transaction, which is what `--force-uneconomic` is now for.
 - **The tally is checkable, not provable — still.** v3 publishes a commitment to
   the ballot set as well as the pin, and `verify-tally` reproduces it. That
   narrows the claim and makes a disagreement locatable, but an operator who

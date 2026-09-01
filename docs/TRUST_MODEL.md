@@ -146,11 +146,22 @@ submits so a retry cannot double-pay.
 This section used to say refunds were computed but not paid, because no proving
 endpoint had been published. That was true when written and is not true now.
 
-Refunds execute — 5 STRK has gone back to a voter on each network — so
-voting is no longer a one-way stake. What remains is economics rather than
-capability: one pool transaction per note at a flat 6 STRK on mainnet means
-refunding a small ballot destroys more than it returns, and nothing batches them
-yet.
+Refunds execute, and they are batched: one pool transaction per ballot identity,
+settling every note that identity holds. Not one per proposal — a pool
+transaction is scoped to one signing account and one viewing key, and `for`,
+`against` and `abstain` keep their stakes at different addresses, so the floor is
+the number of choices that received stake. At most three.
+
+Proven on Sepolia on 2026-09-01: two ballots at one identity, returned in the
+single transaction `0x3b2f3c43…`, one flat fee instead of two. Re-running
+`verify-tally` afterwards returned the same totals and the same ballot-set
+commitment, which is the property that makes refunding safe at all — discovery
+reads received-transfer history, not the unspent set, so spending a ballot note
+cannot move the count.
+
+What remains is the floor itself. A single ballot is still one transaction, so a
+lone 5 STRK vote on mainnet costs 6 STRK to return; `--force-uneconomic` exists
+for that case and no longer for the ordinary one.
 
 ## Still ahead
 

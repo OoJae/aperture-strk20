@@ -132,12 +132,14 @@ already lifted.
 
 ## Known limits
 
-**Refunds work, and cost more than they return.** A refund is a private transfer
-back to the note's sender, and the worker pays them. But a pool transaction is a
-flat 6 STRK on mainnet, so settling a 5 STRK ballot destroys more value than it
-returns — printed per entry, and skipped unless `--force-uneconomic`. Batching a
-proposal's refunds into one pool transaction is the fix and is not built. See
-`docs/TRUST_MODEL.md`.
+**Refunds are batched to the identity, which is the floor.** A refund is a
+private transfer back to the note's sender, and the worker pays them one pool
+transaction per ballot identity — every note that identity holds goes in the same
+transaction, for one flat fee. It cannot go lower: a pool transaction carries one
+signing account and one viewing key, and `for`, `against` and `abstain` are
+different addresses. So a proposal costs at most three transactions to settle,
+and one ballot still costs a whole fee; the economics are reported per batch and
+skipped unless `--force-uneconomic`. See `docs/TRUST_MODEL.md`.
 
 **Delegation is cut from v1.** Sub-accounts were renamed to shadow accounts, no
 anonymizer for them is deployed on any network, and the wallet route does not

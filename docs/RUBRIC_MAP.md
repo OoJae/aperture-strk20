@@ -62,11 +62,13 @@ statuses in this file, which is exactly why they went stale twice.
 
 Stated here so a reader does not have to infer it from silence:
 
-- **Batched refunds.** Refunds work — 5 STRK went back to a voter on each
-  network — but they settle one note at a time, and a mainnet pool transaction is
-  a flat 6 STRK against a 5 STRK stake. Settling a ballot destroys more than it
-  returns. `--force-uneconomic` exists because that is a real property of this
-  pool. Batching them into one pool transaction is the fix, and it is not built.
+- **Refunds below the batch floor.** Batching shipped: one pool transaction per
+  ballot identity rather than one per note, proven on Sepolia with two ballots
+  settled in `0x3b2f3c43…` for a single flat fee. The floor is the number of
+  choices holding stake — at most three, never one — because a transaction is
+  scoped to one signing account and one viewing key. So a proposal with a single
+  ballot still costs 6 STRK on mainnet to return 5, and `--force-uneconomic`
+  remains for exactly that case.
 - **A provable tally.** v3 publishes a commitment to the ballot set as well as
   the block it counted through, and `verify-tally` reproduces both from an
   independent count. That makes a disagreement locatable, but an operator who

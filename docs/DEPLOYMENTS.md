@@ -185,10 +185,15 @@ roughly an hour before it could be registered. But all three signing keys are th
 maintainer's, so this is the machinery for shared custody rather than shared
 custody itself. A quorum can add real co-signers without redeploying.
 
-**Refunds that work and do not pay for themselves.** 5 STRK went back to the
-voter. A pool transaction is a flat 6 STRK, so that refund cost more than it
-returned; `--force-uneconomic` exists because that is a property of settling one
-note at a time on this pool. Batching is the fix and is not built.
+**Refunds that work, and now batch.** 5 STRK went back to the voter here, in its
+own transaction, and a pool transaction is a flat 6 STRK — so that particular
+refund cost more than it returned. Batching has since shipped: one pool
+transaction per ballot identity, settling every note it holds. Proven on Sepolia
+on 2026-09-01, where two ballots were returned together in `0x3b2f3c43…` for a
+single flat fee, and `verify-tally` afterwards reproduced the same totals and the
+same ballot-set commitment. The floor is one transaction per choice holding
+stake, so a lone ballot like this one is still uneconomic; that is what
+`--force-uneconomic` is for now.
 
 ## Mainnet, v2 (superseded)
 
