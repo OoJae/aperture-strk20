@@ -770,6 +770,17 @@ export const LEDGER: readonly LedgerEntry[] = [
     detail:
       "10 STRK FOR from two ballots, counted_through 14216130 = end_block, provenance BallotDerived, ballot_commitment 0x778feed4…. verify-tally recomputes that felt from an independent count and matches it. Routed through the 2-of-3 multisig (operator submits and confirms, pool actor confirms, execute), so it carries two of our events: the registry's and the multisig's.",
   },
+  {
+    hash: "0x23170c229dbb6eceab5ed6e13205e9c636de128204cd11207b4d11fa0ae72eb",
+    network: "mainnet",
+    kind: "private-transfer",
+    block: 14216239,
+    scores: false,
+    through: null,
+    what: "Batched refund on mainnet: two ballots returned in one pool transaction",
+    detail:
+      "Both proposal-2 notes at the FOR identity — 10 STRK — settled in a single pool transaction, paying one 6 STRK flat fee instead of two. Re-running the count afterwards returns the same total and the same ballot-set commitment, because discovery reads received-transfer history rather than the unspent set. Pool-only event; does not score by our rule.",
+  },
 ];
 
 export const DEMO_URL = "https://aperture-strk20.vercel.app";
