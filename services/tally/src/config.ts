@@ -25,7 +25,7 @@ import { ec } from "starknet";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertValidViewingKey } from "@oojae/strk20-governance";
+import { assertValidViewingKey, DEPLOYMENTS } from "@oojae/strk20-governance";
 import { ENV_SPEC, requiredFor, type EnvVarSpec } from "./env-spec.ts";
 
 /**
@@ -77,6 +77,15 @@ export type Network = "mainnet" | "sepolia";
 export interface TallyConfig {
   network: Network;
   rpcUrl: string;
+  /**
+   * Public endpoints to fall back to when `rpcUrl` is unreachable.
+   *
+   * Taken from the shared deployment record rather than the environment: a
+   * transport failure on one provider should not end a run that spends money,
+   * and the worker had no fallback at all until a public Sepolia endpoint
+   * dropped twice inside one rehearsal.
+   */
+  rpcFallbacks: readonly string[];
   poolAddress: string;
   registryAddress: string;
   anonymizerAddress?: string;
@@ -409,6 +418,7 @@ export function loadConfig(explicitEnv?: NodeJS.ProcessEnv): TallyConfig {
   return {
     network,
     rpcUrl: env[rpcVar!]!,
+    rpcFallbacks: DEPLOYMENTS[network].rpcUrls,
     poolAddress: env[vars.pool]!,
     registryAddress: env[vars.registry]!,
     anonymizerAddress: env[vars.anonymizer],

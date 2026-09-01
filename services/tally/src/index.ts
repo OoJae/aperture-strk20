@@ -11,6 +11,8 @@
  */
 
 import { RpcProvider } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import { willPass } from "@oojae/strk20-governance";
 import { loadConfig } from "./config.ts";
 import { ReorgedError, checkIndexerHealth } from "./discovery.ts";
@@ -73,7 +75,7 @@ async function main(argv: string[]): Promise<number> {
     `Indexer healthy — head ${health.head}, ${health.lagSeconds}s behind.`,
   );
 
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
 
   // The window is on-chain, two fields from the id we already have. Not reading
   // it meant the operator's choice of when to run this decided which notes were

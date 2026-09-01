@@ -25,6 +25,8 @@
 
 import { RpcProvider } from "starknet";
 
+import { makeProvider } from "./provider.ts";
+
 import { loadConfig } from "./config.ts";
 import { loadPinnedRun, WindowStillOpenError } from "./pinned-run.ts";
 import { describeError } from "./report-error.ts";
@@ -40,7 +42,7 @@ async function main(argv: string[]): Promise<number> {
   }
   const proposalId = BigInt(idArg);
   const config = loadConfig();
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
 
   const call = async (entrypoint: string, calldata: string[] = []): Promise<string[]> => {
     const r = await provider.callContract({

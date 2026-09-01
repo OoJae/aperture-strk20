@@ -10,6 +10,8 @@
  */
 
 import { Account, CallData, RpcProvider, num } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import { U128_MAX, U64_MAX, assertFits } from "@oojae/strk20-governance";
 import type { TallyResult } from "@oojae/strk20-governance";
 import type { TallyConfig } from "./config.ts";
@@ -66,7 +68,7 @@ export async function finalizeProposal(
   if (run.blockNumber !== proposal.endBlock) {
     throw new PinMismatchError(run.blockNumber, proposal.endBlock);
   }
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
   const account = new Account({
     provider,
     address: config.operatorAddress,

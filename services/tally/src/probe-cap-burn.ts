@@ -26,6 +26,8 @@
  */
 
 import { Account, RpcProvider, num } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import { createPrivateTransfers } from "@starkware-libs/starknet-privacy-sdk";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -83,7 +85,7 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
   const chainId = await provider.getChainId();
   const token = config.strkTokenAddress;
 

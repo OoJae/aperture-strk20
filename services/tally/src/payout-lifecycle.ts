@@ -15,6 +15,8 @@
  */
 
 import { Account, RpcProvider } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { mintPayout, parseTokenAmount } from "@oojae/strk20-governance";
@@ -70,7 +72,7 @@ async function main(argv: string[]): Promise<number> {
     );
     return 1;
   }
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
   const chainId = await provider.getChainId();
   const token = process.env.STRK_TOKEN_ADDRESS!;
 

@@ -15,6 +15,8 @@
  */
 
 import { Account, RpcProvider } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import {
   SimplePrivateTransfersImpl,
   createPrivateTransfers,
@@ -69,7 +71,7 @@ async function main(argv: string[]): Promise<number> {
   // sent Sepolia runs to the mainnet prover, which is the one thing a
   // walkthrough on Sepolia must not do.
   const provingServiceUrl = config.provingServiceUrl;
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
   // From the registry, so it matches the contract that publishes the addresses.
   const domain = await readBallotDomain(provider, config.registryAddress);
   const chainId = await provider.getChainId();

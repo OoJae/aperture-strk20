@@ -34,6 +34,8 @@
  */
 
 import { Account, RpcProvider } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import { mkdirSync, writeFileSync } from "node:fs";
 
 import { deriveBallotViewingKey } from "@oojae/strk20-governance";
@@ -124,7 +126,7 @@ async function main(argv: string[]): Promise<number> {
     return 1;
   }
 
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
   // "Not yet" is the most ordinary thing a first run hits, and it used to print
   // a stack trace for it.
   let loaded;

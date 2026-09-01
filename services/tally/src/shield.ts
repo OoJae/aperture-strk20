@@ -15,6 +15,8 @@
  */
 
 import { Account, RpcProvider } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import { parseTokenAmount } from "@oojae/strk20-governance";
 import { createPrivateTransfers } from "@starkware-libs/starknet-privacy-sdk";
 import { loadConfig } from "./config.ts";
@@ -42,7 +44,7 @@ async function main(argv: string[]): Promise<number> {
   }
 
   const amount = parseTokenAmount(amountArg);
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
   const chainId = await provider.getChainId();
 
   // Free, and it turns an opaque indexer 400 into a local error.

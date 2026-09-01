@@ -31,6 +31,8 @@
  */
 
 import { RpcProvider, hash } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import {
   compute_channel_key,
   compute_note_id,
@@ -45,7 +47,7 @@ function heading(text: string): void {
 
 async function main(): Promise<number> {
   const config = loadConfig();
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
 
   /** Raw calls: the pool's views return felts, and positional reads need no ABI. */
   const view = async (entrypoint: string, calldata: string[] = []): Promise<bigint[]> => {

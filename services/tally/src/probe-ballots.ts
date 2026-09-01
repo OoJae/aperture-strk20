@@ -19,6 +19,8 @@
  */
 
 import { RpcProvider } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import {
   CHOICES,
   deriveBallotIdentity,
@@ -42,7 +44,7 @@ async function main(argv: string[]): Promise<number> {
   }
   const proposalId = BigInt(idArg);
   const config = loadConfig();
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
 
   const domain = await readBallotDomain(provider, config.registryAddress);
   const proposal = await provider.callContract({

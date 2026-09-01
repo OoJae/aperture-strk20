@@ -19,6 +19,8 @@
  */
 
 import { Account, RpcProvider, ec, hash, num } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import { Buffer } from "node:buffer";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -119,7 +121,7 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
   let address = envValue(names.address);
   let privateKey = envValue(names.key);
   let viewingKey = envValue(names.viewing);

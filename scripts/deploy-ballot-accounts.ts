@@ -17,6 +17,8 @@
  */
 
 import { Account, RpcProvider, ec } from "starknet";
+
+import { makeProvider } from "../services/tally/src/provider.ts";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -116,7 +118,7 @@ async function main(): Promise<number> {
 
   const config = loadConfig();
   const env = loadEnv();
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
 
   // Read from the process environment, not from the .env file.
   //

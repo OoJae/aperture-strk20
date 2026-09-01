@@ -15,6 +15,8 @@
  */
 
 import { Account, RpcProvider } from "starknet";
+
+import { makeProvider } from "./provider.ts";
 import { createPrivateTransfers } from "@starkware-libs/starknet-privacy-sdk";
 import {
   CHOICES,
@@ -49,7 +51,7 @@ async function main(argv: string[]): Promise<number> {
     console.error("A proving service is required to register (registration is a pool tx).");
     return 1;
   }
-  const provider = new RpcProvider({ nodeUrl: config.rpcUrl });
+  const provider = makeProvider(config.rpcUrl, config.rpcFallbacks);
   // From the registry, so it matches the contract that publishes the addresses.
   const domain = await readBallotDomain(provider, config.registryAddress);
   const chainId = await provider.getChainId();
