@@ -135,7 +135,7 @@ already lifted.
 **Refunds are batched to the identity, which is the floor.** A refund is a
 private transfer back to the note's sender, and the worker pays them one pool
 transaction per ballot identity — every note that identity holds goes in the same
-transaction, for one flat fee. It cannot go lower: a pool transaction carries one
+transaction, for one flat fee — proven on Sepolia (`0x3b2f3c43…`) and mainnet (`0x23170c229d…`). It cannot go lower: a pool transaction carries one
 signing account and one viewing key, and `for`, `against` and `abstain` are
 different addresses. So a proposal costs at most three transactions to settle,
 and one ballot still costs a whole fee; the economics are reported per batch and

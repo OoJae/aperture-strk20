@@ -118,8 +118,8 @@ to their wrong set still passes. The discovery service can under-report, and a t
 incomplete read is wrong in a way nothing on-chain reveals — it is also handed a
 viewing key in cleartext. Refunds are operator-run private transfers rather than
 contract-enforced escrow, so the operator is trusted to send them. They execute,
-and batch to one transaction per ballot identity — but a flat fee per
-transaction means a lone ballot still costs more to return than it returns. These are real assumptions, not technicalities.
+and batch to one transaction per ballot identity, proven on both networks — but a
+flat fee per transaction means a lone ballot still costs more to return than it returns. These are real assumptions, not technicalities.
 
 The full accounting is in [`docs/TRUST_MODEL.md`](docs/TRUST_MODEL.md). It is
 worth reading before trusting anything here.
@@ -145,10 +145,10 @@ Named rather than hidden:
 | Shared TS package | Implemented — ballot derivation, viewing keys, aggregation. <!--ts-->115<!--/ts--> TypeScript tests across the workspace |
 | Tally service | Implemented. Discovers notes, aggregates, publishes on-chain. Run against mainnet and Sepolia |
 | Demo dapp | Live on mainnet, no login |
-| Mainnet transactions | 34 in [`strk20.json`](strk20.json), 17 through our own contracts |
+| Mainnet transactions | 44 in [`strk20.json`](strk20.json), 19 through our own contracts |
 | Sealed-vote lifecycle | Run end to end on **mainnet and Sepolia** — cast inside the window, counted, finalized with the block it counted through. An earlier Sepolia ballot arrived 945 blocks late and is kept on the record with its correction |
 | Claiming a payout | Works on both networks. Two mainnet claims: `0x1174d989…` under v2 and `0x500f21db…` under v3 |
-| Refunds | Delivered on both networks, and **batched**: one pool transaction per ballot identity, not per note. Proven on Sepolia — two ballots settled in `0x3b2f3c43…` for one flat fee. The floor is three (one per choice), so a single ballot still costs 6 STRK on mainnet to return 5 |
+| Refunds | Delivered on both networks, and **batched**: one pool transaction per ballot identity, not per note. Proven on both networks — two ballots settled in one transaction on Sepolia (`0x3b2f3c43…`) and on mainnet (`0x23170c229d…`), one flat fee each instead of two. The floor is three (one per choice), so a single ballot still costs 6 STRK on mainnet to return 5 |
 | Demo video | [2:37, on YouTube](https://youtu.be/rOHlgf17WqA) |
 
 The shared package is published: **`@oojae/strk20-governance`**

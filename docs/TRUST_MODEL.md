@@ -150,7 +150,9 @@ Refunds execute, and they are batched: one pool transaction per ballot identity,
 settling every note that identity holds. Not one per proposal — a pool
 transaction is scoped to one signing account and one viewing key, and `for`,
 `against` and `abstain` keep their stakes at different addresses, so the floor is
-the number of choices that received stake. At most three.
+the number of choices that received stake. At most three. Proven on both
+networks: `0x3b2f3c43…` on Sepolia and `0x23170c229d…` on mainnet, two ballots each,
+one transaction each, and the count re-run afterwards unchanged.
 
 Proven on Sepolia on 2026-09-01: two ballots at one identity, returned in the
 single transaction `0x3b2f3c43…`, one flat fee instead of two. Re-running

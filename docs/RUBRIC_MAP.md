@@ -33,7 +33,7 @@ statuses in this file, which is exactly why they went stale twice.
 
 | Item | Where | Status |
 |---|---|---|
-| Verified pool transactions | `strk20.json` | **34 recorded, 34 SUCCEEDED, 17 through our own contracts**, and 27 by the organisers' pool-event rule. The two sets cross rather than nest — a `finalize` is ours and touches no pool; a bare shield touches the pool and is nobody's contract — so 10 satisfy both, and those 10 lead the manifest because only the first ten are ever checked. `pnpm verify` re-checks every one against both rules |
+| Verified pool transactions | `strk20.json` | **44 recorded, 44 SUCCEEDED, 19 through our own contracts**, and 35 by the organisers' pool-event rule. The two sets cross rather than nest — a `finalize` is ours and touches no pool; a bare shield touches the pool and is nobody's contract — so 10 satisfy both, and those 10 lead the manifest because only the first ten are ever checked. `pnpm verify` re-checks every one against both rules |
 | Live demo, no login wall | https://aperture-strk20.vercel.app | Live. Reads mainnet with no wallet, no account, no connection |
 | Contracts on mainnet | `docs/DEPLOYMENTS.md` | 3 live — registry, anonymizer, and the 2-of-3 treasury multisig — plus 4 superseded that earlier transactions ran through. All 7 resolve |
 | Sealed-vote lifecycle on mainnet | `docs/DEPLOYMENTS.md` | **Done, twice.** All three ballot identities deployed and registered; a sealed ballot cast inside its window and finalized with `counted_through == end_block` and `BallotDerived`, against v2 and again against v3 |
@@ -63,8 +63,8 @@ statuses in this file, which is exactly why they went stale twice.
 Stated here so a reader does not have to infer it from silence:
 
 - **Refunds below the batch floor.** Batching shipped: one pool transaction per
-  ballot identity rather than one per note, proven on Sepolia with two ballots
-  settled in `0x3b2f3c43…` for a single flat fee. The floor is the number of
+  ballot identity rather than one per note, proven on Sepolia (`0x3b2f3c43…`) and on
+  mainnet (`0x23170c229d…`), two ballots settled for a single flat fee each time. The floor is the number of
   choices holding stake — at most three, never one — because a transaction is
   scoped to one signing account and one viewing key. So a proposal with a single
   ballot still costs 6 STRK on mainnet to return 5, and `--force-uneconomic`

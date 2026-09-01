@@ -175,14 +175,14 @@ package · `apps/web` demo dapp · `services/tally` server-side tally worker ·
 
 ## Where we are
 
-Updated 2026-08-25, after the v3 mainnet lifecycle completed.
+Updated 2026-09-01, after batched refunds ran on mainnet.
 
 **Mainnet runs v3, end to end.** Registry `0x05fe6b3b…`, anonymizer
 `0x01d66b83…`, treasury multisig `0x05e59931…`. A sealed ballot cast **inside** its window, finalized with
 `counted_through == end_block`, `BallotDerived` and a published ballot-set
 commitment that `verify-tally` reproduces; a payout announced, held 1800 blocks
 by the timelock, licensed by a quorum, registered and **claimed**; and the stake
-**refunded**. 34 transactions in `strk20.json`, 17 through our own contracts. The
+**refunded**. 44 transactions in `strk20.json`, 19 through our own contracts. The
 demo is deployed with no login wall and serves these contracts. The demo film
 is published at `https://youtu.be/rOHlgf17WqA` (2:37) and recorded in
 `strk20.json`.
@@ -199,7 +199,8 @@ What is not done:
 
 - **Refunds are batched, but the floor is three, not one.** One pool transaction
   per ballot identity, settling every note it holds — proven on Sepolia
-  (`0x3b2f3c43…`, two ballots, one transaction, one flat fee saved). It cannot
+  (`0x3b2f3c43…`) and on mainnet (`0x23170c229d…`, proposal 2: two ballots, one
+  transaction, 6 STRK of flat fees saved, and the re-count unchanged). It cannot
   collapse to a single transaction per proposal: a pool transaction is scoped to
   one signing account and one viewing key, and the three choices hold their
   stakes at different addresses. A lone ballot is still uneconomic on mainnet at

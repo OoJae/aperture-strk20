@@ -169,6 +169,28 @@ before the refund and again after it.
 Afterwards the registry's `authorized` and the anonymizer's `spent` both read
 1 STRK, and `outstanding` and `unattached` are both zero.
 
+### The lifecycle, proposal 2 — batched refunds (2026-09-01)
+
+Run to prove batching on mainnet, not to score: `verified_txs` is capped at the
+first ten hashes and was already there. Window 14215072–14216130, quorum at the
+5 STRK floor, cap 0 — no payout.
+
+| Step | Hash | Block |
+|---|---|---|
+| create proposal 2 | `0x1092efd931…` | 14214549 |
+| register FOR / AGAINST / ABSTAIN viewing keys | `0x499024f7b7…` / `0x5c0f1b5145…` / `0x4a04b999f3…` | 14214640–14214672 |
+| shield 5, cast FOR (1st) | `0x2e6b694a5c…` / `0x1833834632…` | 14215129 / 14215157 |
+| shield 5, cast FOR (2nd) | `0x37e46f7bb3…` / `0xb7ad16f56d…` | 14215189 / 14215220 |
+| finalize via the multisig | `0x727e0b8e12…` | 14216196 |
+| **batched refund, both notes** | **`0x23170c229d…`** | 14216239 |
+| sweep three identities | `0x6a9dd91c79…` / `0x25d66a750e…` / `0x49258871c9…` | recovered 10.95 STRK |
+
+`verify-tally 2` matched the published totals and the commitment
+`0x778feed4…`; re-running the count after the refund returned the same
+aggregate and the same commitment. One pool transaction returned 10 STRK for
+one 6 STRK flat fee where two would have cost 12. Gross spend ≈ 90 STRK, of
+which the 10 staked came back shielded and 10.95 was swept.
+
 ### What v3 adds, and what it does not
 
 **A tally bound to a set of ballots.** The commitment makes a disagreement
@@ -191,7 +213,8 @@ refund cost more than it returned. Batching has since shipped: one pool
 transaction per ballot identity, settling every note it holds. Proven on Sepolia
 on 2026-09-01, where two ballots were returned together in `0x3b2f3c43…` for a
 single flat fee, and `verify-tally` afterwards reproduced the same totals and the
-same ballot-set commitment. The floor is one transaction per choice holding
+same ballot-set commitment — and on mainnet the same day, where proposal 2's two
+FOR ballots came back together in `0x23170c229d…` (see below). The floor is one transaction per choice holding
 stake, so a lone ballot like this one is still uneconomic; that is what
 `--force-uneconomic` is for now.
 
