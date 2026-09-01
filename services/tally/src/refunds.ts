@@ -13,6 +13,7 @@
  * who to pay. Both are fixed, and refunds now run.
  */
 
+import { CHOICES } from "@oojae/strk20-governance";
 import type { Choice } from "@oojae/strk20-governance";
 import type { DiscoveredForIdentity } from "./dedupe.ts";
 
@@ -77,4 +78,58 @@ export function buildRefundQueue(
   }
 
   return { proposalId, entries, totalAmount };
+}
+
+/**
+ * The refunds one ballot identity can settle in a single pool transaction.
+ *
+ * A pool transaction is scoped to one signing account and one viewing key, and
+ * a ballot identity is derived per choice — so the grouping key is the identity,
+ * and the number of transactions a proposal needs is the number of choices that
+ * actually received notes. At most three, never one.
+ *
+ * This distinction is worth stating because six places in this repository used
+ * to claim batching would collapse a proposal to a single pool transaction. It
+ * cannot: `for`, `against` and `abstain` hold their stakes at different
+ * addresses, and no account can sign for another.
+ */
+export interface RefundGroup {
+  /** The ballot identity that signs, pays the flat fee, and spends the notes. */
+  from: string;
+  choice: Choice;
+  entries: RefundEntry[];
+  /** What this one transaction returns in total. */
+  totalAmount: bigint;
+}
+
+/**
+ * Group a queue into one batch per ballot identity.
+ *
+ * Ordered by choice rather than by discovery order, so two runs over the same
+ * queue produce the same batches in the same sequence. Entry order inside a
+ * group is preserved.
+ */
+export function groupRefundsByIdentity(
+  entries: readonly RefundEntry[],
+): RefundGroup[] {
+  const groups = new Map<string, RefundGroup>();
+
+  for (const entry of entries) {
+    const existing = groups.get(entry.from);
+    if (existing) {
+      existing.entries.push(entry);
+      existing.totalAmount += entry.amount;
+      continue;
+    }
+    groups.set(entry.from, {
+      from: entry.from,
+      choice: entry.choice,
+      entries: [entry],
+      totalAmount: entry.amount,
+    });
+  }
+
+  return [...groups.values()].sort(
+    (a, b) => CHOICES.indexOf(a.choice) - CHOICES.indexOf(b.choice),
+  );
 }

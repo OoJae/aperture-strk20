@@ -24,11 +24,13 @@
  * pinned on chain invites the exact confusion `counted_through` exists to
  * prevent, even though the count itself would survive it.
  *
- * **The fee can exceed the refund.** A pool transaction costs a flat 6 STRK on
- * mainnet, so refunding a 5 STRK ballot destroys more value than it returns.
- * That is a real property of doing this one note at a time on this pool, not a
- * bug, so it is printed per entry and skipped unless --force-uneconomic says
- * otherwise.
+ * **The fee is charged per transaction, not per note.** So refunds are batched:
+ * one pool transaction per ballot identity, settling every note that identity
+ * holds. That is at most three per proposal — `for`, `against` and `abstain`
+ * keep their stakes at different addresses and no account can sign for another —
+ * rather than the one this repository used to claim. A batch can still be
+ * uneconomic if its total is under the flat fee, which is reported per batch and
+ * skipped unless --force-uneconomic says otherwise.
  */
 
 import { Account, RpcProvider } from "starknet";
@@ -41,13 +43,67 @@ import { ensurePoolAllowance, poolFee } from "./pool-allowance.ts";
 import { assertRegisteredViewingKey } from "./pool-identity.ts";
 import { describeError } from "./report-error.ts";
 import { refundDir, refundReceiptPath, isRefunded } from "./refund-receipts.ts";
+import { groupRefundsByIdentity } from "./refunds.ts";
 import type { RefundEntry } from "./refunds.ts";
 
 const strk = (v: bigint): string =>
   `${v / 10n ** 18n}.${(v % 10n ** 18n).toString().padStart(18, "0").slice(0, 4)}`;
 
-/** Headroom above the flat fee for the resource-bound ceiling. */
-const GAS_HEADROOM = 5n * 10n ** 18n;
+/**
+ * Headroom above the flat fee for the resource-bound ceiling.
+ *
+ * The ceiling, not the flat fee, is what makes a node refuse a transaction —
+ * `scripts/deploy-ballot-accounts.ts` documents the same lesson after a register
+ * was refused at a 5.77 STRK ceiling against a 4.88 balance. A batch spends more
+ * notes and creates more, so the proof and the ceiling both grow with it; the
+ * per-note term is deliberately generous because underfunding strands a batch
+ * that has already written its receipts.
+ */
+const GAS_HEADROOM_BASE = 5n * 10n ** 18n;
+const GAS_HEADROOM_PER_NOTE = 2n * 10n ** 18n;
+
+const gasHeadroom = (notes: number): bigint =>
+  GAS_HEADROOM_BASE + GAS_HEADROOM_PER_NOTE * BigInt(Math.max(0, notes - 1));
+
+/**
+ * Write one refund receipt, before the spend and again after it.
+ *
+ * Called twice on purpose. The first call is the safety record — a run that
+ * submits and then dies must not look unpaid, because the note is spent either
+ * way. The second fills in the hash, which `refundTxHash` has always tried to
+ * read from a field nothing wrote.
+ */
+function writeReceipt(
+  entry: RefundEntry,
+  ctx: {
+    proposalId: bigint;
+    config: { network: string };
+    pinned: number;
+    submittedAtBlock: number;
+    txHash?: string;
+  },
+): void {
+  writeFileSync(
+    refundReceiptPath(ctx.config.network, entry),
+    `${JSON.stringify(
+      {
+        network: ctx.config.network,
+        proposalId: ctx.proposalId.toString(),
+        choice: entry.choice,
+        noteId: entry.noteId,
+        amount: entry.amount.toString(),
+        from: entry.from,
+        payee: entry.payee,
+        countedAtBlock: ctx.pinned,
+        submittedAtBlock: ctx.submittedAtBlock,
+        ...(ctx.txHash ? { txHash: ctx.txHash } : {}),
+      },
+      null,
+      2,
+    )}\n`,
+    { mode: 0o600 },
+  );
+}
 
 async function main(argv: string[]): Promise<number> {
   const idArg = argv.slice(2).find((a) => !a.startsWith("--"));
@@ -93,48 +149,69 @@ async function main(argv: string[]): Promise<number> {
 
   let paid = 0n;
   let skipped = 0;
+  let transactions = 0;
 
-  for (const entry of entries) {
-    const label = `${entry.choice.padEnd(8)} ${strk(entry.amount)} STRK`;
-    const path = refundReceiptPath(config.network, entry);
-    if (isRefunded(config.network, entry)) {
-      console.log(`  ${label} — already refunded (${path})`);
+  const groups = groupRefundsByIdentity(entries);
+  console.log(
+    `  ${groups.length} pool transaction(s) for ${entries.length} ballot(s) — ` +
+      `one per ballot identity holding stake\n`,
+  );
+
+  for (const group of groups) {
+    // A receipt is the record that a note was spent, so an already-receipted
+    // entry must not be re-sent even though its neighbours still need paying.
+    const pending = group.entries.filter((e) => !isRefunded(config.network, e));
+    const already = group.entries.length - pending.length;
+    const head = `${group.choice.padEnd(8)}`;
+
+    if (pending.length === 0) {
+      console.log(`  ${head} — all ${group.entries.length} already refunded`);
       continue;
     }
 
-    if (entry.amount <= fee && !force) {
+    const owed = pending.reduce((sum, e) => sum + e.amount, 0n);
+    const label = `${head} ${pending.length} note(s), ${strk(owed)} STRK`;
+
+    // The economics are now a property of the batch, not of one note. This is
+    // the whole point of batching: one flat fee against the sum, so an ordinary
+    // proposal stops needing --force-uneconomic.
+    if (owed <= fee && !force) {
       console.log(
-        `  ${label} — SKIPPED: refunding it costs ${strk(fee)} STRK in fees, ` +
-          `more than the stake returns. Pass --force-uneconomic to do it anyway.`,
+        `  ${label} — SKIPPED: one pool transaction costs ${strk(fee)} STRK, ` +
+          `more than this batch returns. Pass --force-uneconomic to do it anyway.`,
       );
-      skipped++;
+      skipped += pending.length;
       continue;
     }
 
-    // The identity that holds the note signs for itself, and pays the fee from
-    // its own public balance. It was swept after the vote, so it is short.
+    // Derived once per identity rather than once per note: a pool transaction is
+    // scoped to one signing account and one viewing key, which is exactly why
+    // the batch boundary is the identity.
     const viewingKey = deriveBallotViewingKey({
       masterSecret: config.ballotViewingSeed,
       domain,
       proposalId,
-      choice: entry.choice,
+      choice: group.choice,
     });
     const account = new Account({
       provider,
-      address: entry.from,
+      address: group.from,
       signer: config.ballotAccountPrivateKey,
       cairoVersion: "1",
     });
 
     try {
-      await assertRegisteredViewingKey(provider, config.poolAddress, entry.from, viewingKey);
+      await assertRegisteredViewingKey(provider, config.poolAddress, group.from, viewingKey);
 
-      const needed = fee + GAS_HEADROOM;
+      // A batch spends more notes and creates more, so the resource-bound
+      // ceiling grows with it. The ceiling, not the flat fee, is what refuses a
+      // transaction, so headroom scales per output.
+      const needed = fee + gasHeadroom(pending.length);
       const held = await (async () => {
         const r = await provider.callContract({
           contractAddress: config.strkTokenAddress,
           entrypoint: "balanceOf",
-          calldata: [entry.from],
+          calldata: [group.from],
         });
         const x = (Array.isArray(r) ? r : (r as { result: string[] }).result) as string[];
         return BigInt(x[0]!) + (BigInt(x[1] ?? "0x0") << 128n);
@@ -152,7 +229,7 @@ async function main(argv: string[]): Promise<number> {
         const fundTx = await funder.execute({
           contractAddress: config.strkTokenAddress,
           entrypoint: "transfer",
-          calldata: [entry.from, top.toString(), "0"],
+          calldata: [group.from, top.toString(), "0"],
         });
         await provider.waitForTransaction(fundTx.transaction_hash);
         process.stdout.write("done\n");
@@ -165,28 +242,15 @@ async function main(argv: string[]): Promise<number> {
         token: config.strkTokenAddress,
       });
 
-      // Written before submitting. A run that transfers and then dies must not
-      // look unpaid on the retry — the note is spent either way.
+      // Every receipt in the batch is written before the single submit. One
+      // transaction settles all of them, so a run that submits and then dies
+      // must not leave any of them looking unpaid — the notes are spent either
+      // way. The hash is filled in afterwards.
+      const submittedAtBlock = await provider.getBlockNumber();
       mkdirSync(refundDir(), { recursive: true });
-      writeFileSync(
-        path,
-        `${JSON.stringify(
-          {
-            network: config.network,
-            proposalId: proposalId.toString(),
-            choice: entry.choice,
-            noteId: entry.noteId,
-            amount: entry.amount.toString(),
-            from: entry.from,
-            payee: entry.payee,
-            countedAtBlock: pinned,
-            submittedAtBlock: await provider.getBlockNumber(),
-          },
-          null,
-          2,
-        )}\n`,
-        { mode: 0o600 },
-      );
+      for (const entry of pending) {
+        writeReceipt(entry, { proposalId, config, pinned, submittedAtBlock });
+      }
 
       const transfers = createPrivateTransfers({
         account,
@@ -207,20 +271,21 @@ async function main(argv: string[]): Promise<number> {
       // compiler refuses to build anything at all. Change goes back to the
       // identity, which is where it already was.
       const withSurplus = (builder.surplusTo as (a: string) => typeof builder)(
-        entry.from,
+        group.from,
       ) as never as {
         with: (t: string, ops: (b: unknown) => void) => {
           execute: (o: unknown) => Promise<{ callAndProof: unknown }>;
         };
       };
 
-      process.stdout.write(`  ${label} -> ${entry.payee.slice(0, 14)}… `);
+      process.stdout.write(`  ${label} -> ${pending.length} payee(s) … `);
       const result = await withSurplus
         .with(config.strkTokenAddress, (t) => {
-          (t as { transfer: (o: unknown) => unknown }).transfer({
-            recipient: entry.payee,
-            amount: entry.amount,
-          });
+          // Variadic by design in the SDK — one output note per recipient, all
+          // inside the single pool transaction this identity is paying for.
+          (t as { transfer: (...o: unknown[]) => unknown }).transfer(
+            ...pending.map((e) => ({ recipient: e.payee, amount: e.amount })),
+          );
         })
         .execute({ provingBlockId: (await provider.getBlockNumber()) - FINALITY_LAG });
 
@@ -238,16 +303,47 @@ async function main(argv: string[]): Promise<number> {
           `REVERTED: ${(receipt as { revert_reason?: string }).revert_reason ?? "(no reason)"}`,
         );
       }
+
+      // Now that there is a hash, put it in the receipts. refundTxHash() read a
+      // field nothing ever wrote, so it always returned undefined.
+      for (const entry of pending) {
+        writeReceipt(entry, {
+          proposalId,
+          config,
+          pinned,
+          submittedAtBlock,
+          txHash: tx.transaction_hash,
+        });
+      }
+
       console.log(tx.transaction_hash);
-      paid += entry.amount;
+      if (already) console.log(`      (${already} in this batch were already refunded)`);
+      paid += owed;
+      transactions++;
     } catch (error) {
       console.log("FAILED");
       console.error(`      ${describeError(error)}`);
+      // Batching trades granularity for cost: one unreachable payee reverts the
+      // whole group, where before it would have lost only its own refund.
+      console.error(
+        `      This batch settles ${pending.length} note(s) in one transaction, ` +
+          `so none of them were paid.`,
+      );
       return 1;
     }
   }
 
-  console.log(`\n  refunded ${strk(paid)} STRK` + (skipped ? `, ${skipped} skipped as uneconomic` : ""));
+  const saved = entries.length - transactions;
+  console.log(
+    `\n  refunded ${strk(paid)} STRK in ${transactions} pool transaction(s)` +
+      (skipped ? `, ${skipped} skipped as uneconomic` : ""),
+  );
+  if (saved > 0) {
+    console.log(
+      `  ${saved} fewer transaction(s) than one per note — ${strk(BigInt(saved) * fee)} STRK ` +
+        `of flat fees not spent.`,
+    );
+  }
   console.log(
     `  Re-run the tally to confirm the aggregate is unchanged — spending a\n` +
       `  ballot note must not move the count, which is why discovery reads\n` +
