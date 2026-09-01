@@ -45,6 +45,12 @@ async function main(argv: string[]): Promise<number> {
   const amount = parseTokenAmount(amountArg);
   const config = loadConfig();
 
+  // Announce, authorize, register and claim all move real value on mainnet.
+  if (config.network === "mainnet" && process.env.APERTURE_CONFIRM !== "mainnet") {
+    console.error("Refusing to spend on mainnet without APERTURE_CONFIRM=mainnet.");
+    return 2;
+  }
+
   // config, not process.env: the bare names are the mainnet ones, so reading
   // them directly ran Sepolia against the mainnet prover.
   const provingServiceUrl = config.provingServiceUrl;

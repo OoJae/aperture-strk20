@@ -50,6 +50,19 @@ async function main(argv: string[]): Promise<number> {
   const proposalId = BigInt(idArg);
   const config = loadConfig();
 
+  // Counting is a read and costs nothing, so only publishing needs the gate.
+  if (
+    shouldFinalize &&
+    config.network === "mainnet" &&
+    process.env.APERTURE_CONFIRM !== "mainnet"
+  ) {
+    console.error(
+      "Refusing to publish a tally on mainnet without APERTURE_CONFIRM=mainnet. " +
+        "Re-run without --finalize to count without writing.",
+    );
+    return 2;
+  }
+
   console.log(`Network: ${config.network}`);
   const health = await checkIndexerHealth(config.indexerUrl);
   if (!health.healthy) {

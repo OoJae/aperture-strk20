@@ -57,6 +57,14 @@ async function main(argv: string[]): Promise<number> {
   const proposalId = BigInt(idArg);
   const weight = parseTokenAmount(amountArg);
   const config = loadConfig();
+
+  // A cast is a pool transaction and costs the flat fee. Every other script
+  // that spends on mainnet asks first; these four did not, which left the
+  // maintainer's own ground rule enforced in some places and not others.
+  if (config.network === "mainnet" && process.env.APERTURE_CONFIRM !== "mainnet") {
+    console.error("Refusing to spend on mainnet without APERTURE_CONFIRM=mainnet.");
+    return 2;
+  }
   // Network-scoped, via config. Reading process.env.PROVING_SERVICE_URL here
   // sent Sepolia runs to the mainnet prover, which is the one thing a
   // walkthrough on Sepolia must not do.
