@@ -49,7 +49,16 @@ function loadEnv(): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of readFileSync(resolve(ROOT, ".env"), "utf8").split("\n")) {
     const m = line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
-    if (m) out[m[1]!] = m[2]!.trim().replace(/^["']|["']$/g, "");
+    if (!m) continue;
+    const value = m[2]!.trim().replace(/^["']|["']$/g, "");
+    // A blank assignment is not a value. `.env.example` ships the _SNCAST
+    // variants empty and says the plain one is used when they are unset, but
+    // storing "" made `??` return the empty string instead of falling through —
+    // so a verbatim .env.example failed with "No RPC configured" while a
+    // perfectly good default sat two lines above. config.ts already skips
+    // blanks for exactly this reason; these copies never got the fix.
+    if (value === "") continue;
+    out[m[1]!] = value;
   }
   return out;
 }

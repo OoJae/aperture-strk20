@@ -221,17 +221,40 @@ must stay that way.
 
 ## From clone to a cast ballot
 
-These steps deploy **your own** contracts, so run them on **Sepolia** — the
-faucet is free and a mistake costs nothing. The same sequence has been run on
-mainnet against the contracts above; see `docs/DEPLOYMENTS.md` for every hash.
+These steps deploy **your own** contracts, so run them on **Sepolia**. The same
+sequence has been run on mainnet against the contracts above; see
+`docs/DEPLOYMENTS.md` for every hash.
+
+**Budget about 120 STRK on the operator account.** The faucet gives 100 STRK per
+address per 24h, so this is one drip plus a little, or two addresses. Deploying
+the three contracts is most of it (~45), funding three ballot identities is 45,
+and the pool actor needs 15. Most of that is recoverable at the end with
+`sweep-ballot-accounts.ts`, but it has to be there up front — a run that stops
+half way leaves contracts deployed and identities funded.
 
 Starknet fees are STRK-denominated, not ETH. Accounts are contracts, so you fund
 the counterfactual address *between* `account create` and `account deploy`.
 
+**Two files decide what you get, and both ship pointing at this project rather
+than at you:**
+
+- `deployments/params.json` — `owner` and `multisigSigners` are burned into
+  constructors and can never be changed afterwards. Set both to **your own**
+  address, or you will deploy a registry whose `create_proposal` refuses you and
+  a multisig you can never reach quorum on. `deploy.ts` now refuses up front
+  rather than letting you find out several paid steps later.
+- `deployments/sepolia.json` — a resume file recording *this project's* v2
+  deployment. A recorded registry means "skip the deploy", so move it aside
+  before deploying your own: `mv deployments/sepolia.json
+  deployments/sepolia.mine.json`. `deploy.ts` refuses if it would resume across
+  generations.
+
 The `sncast` commands below read an RPC URL from your shell, and nothing puts
 `.env` there — the scripts load it themselves, but `sncast` is not one of ours.
-Export it first, or those two commands receive an empty `--url` and fail with a
-misleading error:
+`.env.example` ships `STARKNET_RPC_URL_SEPOLIA_SNCAST` **blank**, and `sncast`
+needs RPC spec 0.10 or newer, so set it to a versioned endpoint in `.env` before
+exporting — otherwise these two commands receive an empty `--url` and fail with
+a misleading "Invalid block id":
 
 ```sh
 set -a && . ./.env && set +a
@@ -259,12 +282,14 @@ node scripts/import-sncast-account.ts aperture-sepolia
 #    anonymizer goes out, because its registry pointer is write-once.
 #    Writes the three addresses into .env, which is where every step below
 #    reads them from.
-node scripts/deploy.ts sepolia --wait
+node scripts/deploy.ts sepolia
 
 # 3. A proposal, its three ballot identities, and their viewing keys.
 #    The window is sized in minutes against the chain's measured block time —
 #    Sepolia runs about 1.67s/block, and a window that cannot fit one vote is
 #    rejected rather than created.
+#    create-proposal.ts prints the id it actually created; use that below
+#    rather than the literal 1, which is only right on a fresh registry.
 node scripts/create-proposal.ts "ipfs://your-proposal" --lead 12 --span 75 --cap 3
 node scripts/deploy-ballot-accounts.ts 1
 node services/tally/src/register-ballots.ts 1

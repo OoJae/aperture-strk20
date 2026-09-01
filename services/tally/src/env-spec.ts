@@ -335,6 +335,16 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     description: "Signs for POOL_ACTOR_ADDRESS_SEPOLIA.",
   },
   {
+    name: "POOL_ACTOR_SALT_SEPOLIA",
+    requirement: "optional",
+    secret: false,
+    group: "Secrets",
+    description:
+      "Deployment salt for POOL_ACTOR_ADDRESS_SEPOLIA, written by " +
+      "new-pool-account.ts. Needed to re-derive the counterfactual address " +
+      "before it is deployed.",
+  },
+  {
     name: "POOL_ACTOR_VIEWING_KEY_SEPOLIA",
     requirement: "optional",
     secret: true,
@@ -357,6 +367,17 @@ export const ENV_SPEC: readonly EnvVarSpec[] = [
     secret: true,
     group: "Secrets",
     description: "Signs for POOL_ACTOR_ADDRESS. Defaults to the operator's key.",
+  },
+  {
+    name: "POOL_ACTOR_SALT",
+    requirement: "optional",
+    secret: false,
+    group: "Secrets",
+    description:
+      "Deployment salt for POOL_ACTOR_ADDRESS, written by new-pool-account.ts. " +
+      "Needed to re-derive the counterfactual address before it is deployed, so " +
+      "losing it between generating and deploying strands the account. Read via " +
+      "a computed name, which is why it escaped this list until 2026-09-01.",
   },
   {
     name: "POOL_ACTOR_VIEWING_KEY",

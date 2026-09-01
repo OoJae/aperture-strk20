@@ -62,13 +62,29 @@ interface State {
   ballotDomain?: string;
   daoMasterPublicKey?: string;
   deployedAt?: string;
+  /**
+   * The epoch this state was built under.
+   *
+   * Recorded so a later run can tell "already deployed" from "deployed by a
+   * previous generation". Absent on files written before v3.
+   */
+  epoch?: string;
 }
 
 function loadEnv(): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of readFileSync(resolve(ROOT, ".env"), "utf8").split("\n")) {
     const m = line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
-    if (m) out[m[1]!] = m[2]!.trim().replace(/^["']|["']$/g, "");
+    if (!m) continue;
+    const value = m[2]!.trim().replace(/^["']|["']$/g, "");
+    // A blank assignment is not a value. `.env.example` ships the _SNCAST
+    // variants empty and says the plain one is used when they are unset, but
+    // storing "" made `??` return the empty string instead of falling through —
+    // so a verbatim .env.example failed with "No RPC configured" while a
+    // perfectly good default sat two lines above. config.ts already skips
+    // blanks for exactly this reason; these copies never got the fix.
+    if (value === "") continue;
+    out[m[1]!] = value;
   }
   return out;
 }
@@ -199,6 +215,75 @@ async function main(): Promise<number> {
   const felt = (v: string) => num.toHex(BigInt(v));
   const short = (v: string) => num.toHex(BigInt(shortString.encodeShortString(v)));
 
+  // 0a — refuse to deploy a registry the deployer cannot use.
+  //
+  // `owner` and `multisigSigners` are burned into constructors and can never be
+  // changed. `deployments/params.json` ships this project's maintainer in both,
+  // and the file is referenced nowhere in the README — so a stranger who follows
+  // the walkthrough verbatim deploys a registry whose `create_proposal` reverts
+  // NOT_ALLOWED_PROPOSER for them, with an owner-only escape hatch they do not
+  // hold, and a multisig they can never reach quorum on. Both failures land
+  // several paid steps later and neither names the cause.
+  const operatorName =
+    network === "mainnet" ? "TALLY_OPERATOR_ADDRESS" : "TALLY_OPERATOR_ADDRESS_SEPOLIA";
+  const operator = env[operatorName];
+  if (operator && BigInt(params.owner) !== BigInt(operator)) {
+    throw new Error(
+      `deployments/params.json sets the ${network} owner to an address that is ` +
+        `not the account deploying.\n\n` +
+        `  params owner       ${params.owner}\n` +
+        `  ${operatorName.padEnd(18)} ${operator}\n\n` +
+        `The owner is fixed at construction. Only the owner may allow proposers, ` +
+        `so a registry owned by someone else is one you cannot create a proposal ` +
+        `on. Set "owner" — and any signer in "multisigSigners" you hold the key ` +
+        `for — to your own address in deployments/params.json, then re-run.`,
+    );
+  }
+  if (operator && !params.multisigSigners.some((sig) => BigInt(sig) === BigInt(operator))) {
+    throw new Error(
+      `deployments/params.json lists no ${network} multisig signer you hold.\n\n` +
+        `  signers  ${params.multisigSigners.join("\n           ")}\n` +
+        `  yours    ${operator}\n\n` +
+        `The multisig becomes the registry's tally_operator and its signer set is ` +
+        `fixed at construction. Without a key in it you could never publish a ` +
+        `tally or license a payout. Put your address in "multisigSigners".`,
+    );
+  }
+
+  // 0 — refuse a state file from a previous generation, before anything spends.
+  //
+  // `deployments/<network>.json` is a resume file: a recorded registry means
+  // "skip the deploy". When the recorded registry belongs to an older epoch that
+  // is wrong, and the run used to discover it at step 4 — after declaring and
+  // deploying a TreasuryMultisig. The committed Sepolia file is exactly this
+  // case: a v2 registry against a v3 epoch, so a stranger following the README
+  // paid for a multisig and then hit a domain mismatch with nothing telling them
+  // the state file was the cause.
+  //
+  // Both checks are local arithmetic. Neither costs anything.
+  if (state.registry) {
+    const staleEpoch = state.epoch !== undefined && state.epoch !== params.epoch;
+    const staleDomain =
+      state.ballotDomain !== undefined &&
+      BigInt(state.ballotDomain) !==
+        BigInt(ballotDomain(short(params.chainId), state.registry, short(params.epoch)));
+
+    if (staleEpoch || staleDomain) {
+      throw new Error(
+        `deployments/${network}.json records a registry from a different ` +
+          `generation, so this run would resume on top of it.\n\n` +
+          `  recorded registry  ${state.registry}\n` +
+          `  recorded epoch     ${state.epoch ?? "(none — written before epochs were tracked)"}\n` +
+          `  params epoch       ${params.epoch}\n\n` +
+          `Deploying a new generation means starting from a clean state file:\n` +
+          `  mv deployments/${network}.json deployments/${network}.superseded.json\n\n` +
+          `Keep the old file — docs/DEPLOYMENTS.md cites the addresses in it. To ` +
+          `redeploy the SAME generation instead, set the epoch in ` +
+          `deployments/params.json back to the one above.`,
+      );
+    }
+  }
+
   console.log(`\nAperture v3 -> ${network}`);
   console.log(`  account   ${params.account}`);
   console.log(`  owner     ${params.owner}`);
@@ -308,6 +393,7 @@ async function main(): Promise<number> {
     }
     state.registry = address;
     state.daoMasterPublicKey = masterPublicKey;
+    state.epoch = params.epoch;
     writeState(state);
     console.log(`   ${address}`);
   } else {
